@@ -1,0 +1,35 @@
+name: 测试
+
+# 这个工作流只做一件事：每次提交都把纯逻辑测试跑一遍。
+# 不需要 npm install —— 项目零依赖，装个 Node 就能跑。
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 纯逻辑测试（Node ${{ matrix.node }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 是 GitHub Actions 上较老但仍受支持的版本，20 是当前主流
+        node: ['18', '20']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 语法检查
+        run: |
+          for f in index.js src/*.js test/*.js; do
+            node --check "$f"
+          done
+
+      - name: 跑测试
+        run: node test/test-core.js
