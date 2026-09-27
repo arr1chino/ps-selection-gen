@@ -32,4 +32,6 @@ jobs:
           done
 
       - name: 跑测试
-        run: node test/test-core.js
+        run: |
+          node test/test-core.js
+          node test/test-manifest.js

@@ -22,15 +22,15 @@
           "width": 23,
           "height": 23,
           "path": "icons/icon.png",
-          "scale": [1],
-          "theme": ["darkest", "dark", "medium", "lightest", "light"]
+          "scale": [1, 2],
+          "theme": ["darkest", "dark", "medium"]
         },
         {
           "width": 23,
           "height": 23,
           "path": "icons/icon.png",
-          "scale": [2],
-          "theme": ["darkest", "dark", "medium", "lightest", "light"]
+          "scale": [1, 2],
+          "theme": ["lightest", "light"]
         }
       ]
     }
@@ -40,16 +40,16 @@
       "width": 23,
       "height": 23,
       "path": "icons/icon.png",
-      "scale": [1],
-      "theme": ["darkest", "dark", "medium", "lightest", "light"],
+      "scale": [1, 2],
+      "theme": ["darkest", "dark", "medium"],
       "species": ["pluginList", "generic"]
     },
     {
       "width": 23,
       "height": 23,
       "path": "icons/icon.png",
-      "scale": [2],
-      "theme": ["darkest", "dark", "medium", "lightest", "light"],
+      "scale": [1, 2],
+      "theme": ["lightest", "light"],
       "species": ["pluginList", "generic"]
     }
   ],

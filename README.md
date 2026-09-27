@@ -3,7 +3,7 @@
 一个极简的 Photoshop 插件：**框一个选区 → 写提示词 → 调用生图接口 → 结果自动贴回选区位置**。
 没有登录、没有账号、没有云端依赖，配置一次 API 就能用。
 
-> 状态：代码已完成，纯逻辑部分已通过自动化测试（56 项）。
+> 状态：代码已完成，纯逻辑部分已通过自动化测试（70 项）。
 > 面板已按本机 Photoshop 的 `Plug-ins` 目录接入（见「安装」），
 > 但「面板能否加载、选区读取与贴回是否准确」这一轮**真机验证尚未完成**，见文末「还没验证的部分」。
 
@@ -59,6 +59,7 @@ ps-selection-gen/
 │  ├─ queue.js            并发池 / PS 串行锁 / 任务表
 │  └─ pipeline.js         一次批量生成的完整流程编排
 ├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（56 项断言）
+├─ test/test-manifest.js  清单自检（14 项，防清单写坏导致插件整个消失）
 ├─ tools/                 一键安装脚本（Windows）
 ├─ CHANGELOG.md           版本更新日志
 └─ icons/                 插件图标（icon@1x.png / icon@2x.png 两种尺寸）
@@ -70,9 +71,10 @@ ps-selection-gen/
 
 ```
 node test/test-core.js
+node test/test-manifest.js
 ```
 
-期望 56 项 `ok`、0 项 `FAIL`。
+期望 56 项 + 14 项 `ok`、0 项 `FAIL`。
 
 ## 怎么装进 Photoshop
 
@@ -222,9 +224,9 @@ base64 → 写临时文件 → app.open() 让 PS 解码
 
 ## 还没验证的部分
 
-已经用自动化测试覆盖的（`test/test-core.js`，56 项全过）：
+已经用自动化测试覆盖的（`test/test-core.js` 56 项 + `test/test-manifest.js` 14 项，全过）：
 base64 编解码、中文提示词的 UTF-8 编码、图片格式嗅探、尺寸换算与比例保持、接口地址清洗、模型名过滤、
-各类返回结构的图片提取、请求字段被上游拒绝时的降级判断。
+各类返回结构的图片提取、请求字段被上游拒绝时的降级判断、清单里的字段与图标文件是否齐备。
 
 必须在真实 Photoshop 里验证的：
 
