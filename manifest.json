@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "main": "index.html",
   "manifestVersion": 5,
-  "host": [
-    { "app": "PS", "minVersion": "24.2.0" }
-  ],
+  "host": {
+    "app": "PS",
+    "minVersion": "24.2.0"
+  },
   "entrypoints": [
     {
       "type": "panel",
@@ -20,16 +21,16 @@
         {
           "width": 23,
           "height": 23,
-          "path": "icons/icon.png",
-          "scale": [1, 2],
-          "theme": ["darkest", "dark", "medium"]
+          "path": "icons/icon@1x.png",
+          "scale": [1],
+          "theme": ["darkest", "dark", "medium", "lightest", "light"]
         },
         {
           "width": 23,
           "height": 23,
-          "path": "icons/icon.png",
-          "scale": [1, 2],
-          "theme": ["lightest", "light"]
+          "path": "icons/icon@2x.png",
+          "scale": [2],
+          "theme": ["darkest", "dark", "medium", "lightest", "light"]
         }
       ]
     }
@@ -38,18 +39,18 @@
     {
       "width": 23,
       "height": 23,
-      "path": "icons/icon.png",
-      "scale": [1, 2],
-      "theme": ["darkest", "dark", "medium"],
-      "species": ["pluginList"]
+      "path": "icons/icon@1x.png",
+      "scale": [1],
+      "theme": ["darkest", "dark", "medium", "lightest", "light"],
+      "species": ["pluginList", "generic"]
     },
     {
       "width": 23,
       "height": 23,
-      "path": "icons/icon.png",
-      "scale": [1, 2],
-      "theme": ["lightest", "light"],
-      "species": ["pluginList"]
+      "path": "icons/icon@2x.png",
+      "scale": [2],
+      "theme": ["darkest", "dark", "medium", "lightest", "light"],
+      "species": ["pluginList", "generic"]
     }
   ],
   "requiredPermissions": {

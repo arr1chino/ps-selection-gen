@@ -47,7 +47,7 @@ ps-selection-gen/
 ├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（36 项断言）
 ├─ tools/                 一键安装脚本（Windows）
 ├─ CHANGELOG.md           版本更新日志
-└─ icons/icon.png         插件图标
+└─ icons/                 插件图标（icon@1x.png / icon@2x.png 两种尺寸）
 ```
 
 ## 跑测试
