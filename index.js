@@ -118,9 +118,9 @@ function renderTasks(list) {
 
 function readForm() {
   cfg.baseUrl = $('baseUrl').value.trim();
-  cfg.protocol = $('protocol').value;
+  cfg.protocol = segValue('protocolSeg') || 'openai';
   cfg.model = $('model').value.trim();
-  cfg.sizeTier = $('sizeTier').value;
+  cfg.sizeTier = segValue('sizeTierSeg') || '2048';
   cfg.concurrency = Math.max(1, Math.min(8, parseInt($('concurrency').value, 10) || 1));
   cfg.timeout = Math.max(10, Math.min(900, parseInt($('timeout').value, 10) || 180));
   return cfg;
@@ -128,11 +128,64 @@ function readForm() {
 
 function fillForm() {
   $('baseUrl').value = cfg.baseUrl || '';
-  $('protocol').value = cfg.protocol || 'openai';
+  setSeg('protocolSeg', cfg.protocol || 'openai');
   $('model').value = cfg.model || '';
-  $('sizeTier').value = cfg.sizeTier || '2048';
+  setSeg('sizeTierSeg', cfg.sizeTier || '2048');
   $('concurrency').value = cfg.concurrency || 2;
   $('timeout').value = cfg.timeout || 180;
+  updateProtocolHint();
+}
+
+/* ---- 档位切换（自绘，不用原生下拉框） ------------------------------ */
+
+/* 每个协议的接口路径，写在设置里当说明用 */
+var PROTOCOL_HINT = {
+  openai: '走 POST /v1/images/edits：选区图当参考图上传，OpenAI 风格的中转站大多用这个。',
+  gemini: '走 POST :generateContent：直连 Google Gemini / nano banana 时选这个。',
+  chat: '走 POST /v1/chat/completions：只有对话接口的中转站选这个，nano banana 中转常见。'
+};
+
+function segButtons(id) {
+  var seg = $(id);
+  return seg ? seg.children : [];
+}
+
+/* 取当前选中的档位值 */
+function segValue(id) {
+  var btns = segButtons(id);
+  for (var i = 0; i < btns.length; i++) {
+    if (btns[i].className && btns[i].className.indexOf('active') !== -1) {
+      return btns[i].getAttribute('data-v');
+    }
+  }
+  return '';
+}
+
+/* 设置选中项，并把高亮同步到按钮上 */
+function setSeg(id, value) {
+  var btns = segButtons(id);
+  for (var i = 0; i < btns.length; i++) {
+    var on = btns[i].getAttribute('data-v') === String(value);
+    btns[i].className = on ? 'active' : '';
+  }
+}
+
+function wireSeg(id, onChange) {
+  var seg = $(id);
+  if (!seg) return;
+  seg.addEventListener('click', function (ev) {
+    var t = ev.target;
+    var v = t && t.getAttribute ? t.getAttribute('data-v') : '';
+    if (!v) return;
+    setSeg(id, v);
+    if (onChange) onChange(v);
+  });
+}
+
+function updateProtocolHint() {
+  var el = $('protocolHint');
+  if (!el) return;
+  el.textContent = PROTOCOL_HINT[segValue('protocolSeg') || 'openai'] || '';
 }
 
 /* 顶部状态条：让用户一眼看出 API 配好没有，不用点进设置 */
@@ -184,33 +237,7 @@ async function onPullModels() {
     var res = await api.listModels({ baseUrl: cfg.baseUrl, apiKey: key });
     modelsAll = res.ids;
     var likely = api.prioritizeImageModels(modelsAll);
-    var picker = $('modelPicker');
-    picker.innerHTML = '';
-
-    var optAll = document.createElement('option');
-    optAll.value = '__ALL__';
-    optAll.textContent = '—— 下面是 ' + likely.length + ' 个疑似生图模型（共拉到 ' + modelsAll.length + ' 个）——';
-    picker.appendChild(optAll);
-
-    for (var i = 0; i < likely.length; i++) {
-      var o = document.createElement('option');
-      o.value = likely[i];
-      o.textContent = likely[i];
-      picker.appendChild(o);
-    }
-    if (likely.length !== modelsAll.length) {
-      var sep = document.createElement('option');
-      sep.value = '__ALL2__';
-      sep.textContent = '—— 全部模型 ——';
-      picker.appendChild(sep);
-      for (var j = 0; j < modelsAll.length; j++) {
-        if (likely.indexOf(modelsAll[j]) !== -1) continue;
-        var o2 = document.createElement('option');
-        o2.value = modelsAll[j];
-        o2.textContent = modelsAll[j];
-        picker.appendChild(o2);
-      }
-    }
+    renderModelList(likely, modelsAll);
     log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型', 'ok');
   } catch (e) {
     log('拉取失败：' + e.message, 'err');
@@ -218,6 +245,58 @@ async function onPullModels() {
     btn.disabled = false;
     btn.textContent = '拉取模型列表';
     updateApiState();
+  }
+}
+
+/* ---- 模型列表（自绘列表，点一行即选中） ---------------------------- */
+
+function modelSep(text) {
+  var d = document.createElement('div');
+  d.className = 'model-sep';
+  d.textContent = text;
+  return d;
+}
+
+function modelRow(value) {
+  var d = document.createElement('div');
+  d.className = 'model-item';
+  d.setAttribute('data-v', value);
+  d.textContent = value;
+  return d;
+}
+
+function renderModelList(likely, all) {
+  var box = $('modelList');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!all.length) {
+    var empty = document.createElement('div');
+    empty.className = 'model-item empty';
+    empty.textContent = '（没拉到模型：检查地址和 Key）';
+    box.appendChild(empty);
+    return;
+  }
+  box.appendChild(modelSep('疑似生图模型（' + likely.length + ' / 共 ' + all.length + '）'));
+  for (var i = 0; i < likely.length; i++) box.appendChild(modelRow(likely[i]));
+  if (likely.length !== all.length) {
+    box.appendChild(modelSep('全部模型'));
+    for (var j = 0; j < all.length; j++) {
+      if (likely.indexOf(all[j]) !== -1) continue;
+      box.appendChild(modelRow(all[j]));
+    }
+  }
+  markActiveModel();
+}
+
+/* 让已选中的模型在列表里高亮 */
+function markActiveModel() {
+  var box = $('modelList');
+  if (!box) return;
+  var items = box.children;
+  for (var i = 0; i < items.length; i++) {
+    var v = items[i].getAttribute ? items[i].getAttribute('data-v') : '';
+    if (!v) continue;
+    items[i].className = v === cfg.model ? 'model-item active' : 'model-item';
   }
 }
 
@@ -304,12 +383,22 @@ async function boot() {
   $('btnOpenSettings').addEventListener('click', openSettings);
   $('btnCloseSettings').addEventListener('click', closeSettings);
 
-  $('modelPicker').addEventListener('change', function (ev) {
-    var v = ev.target.value;
-    if (!v || v === '__ALL__' || v === '__ALL2__') return;
+  wireSeg('sizeTierSeg', function (v) {
+    cfg.sizeTier = v;
+  });
+  wireSeg('protocolSeg', function (v) {
+    cfg.protocol = v;
+    updateProtocolHint();
+  });
+
+  $('modelList').addEventListener('click', function (ev) {
+    var t = ev.target;
+    var v = t && t.getAttribute ? t.getAttribute('data-v') : '';
+    if (!v) return;
     $('model').value = v;
     cfg.model = v;
     store.saveConfig(cfg);
+    markActiveModel();
     updateApiState();
   });
 

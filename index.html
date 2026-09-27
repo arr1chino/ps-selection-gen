@@ -138,6 +138,44 @@
     button:disabled { opacity: 0.45; }
     .btn-row { display: flex; gap: 6px; margin-top: 6px; }
     .btn-row button { flex: 1 1 0; }
+    /* 档位切换：不用原生下拉框——Windows 的原生弹出列表不归我们管，
+       字体和配色都会跟面板对不上。 */
+    .seg { display: flex; height: 24px; }
+    .seg button {
+      flex: 1 1 0;
+      height: 24px;
+      min-width: 0;
+      padding: 0 4px;
+      border-radius: 0;
+      border: 1px solid #3a3e44;
+      border-right: none;
+      background: #33373d;
+      color: #b9bfc7;
+      overflow: hidden;
+    }
+    .seg button:first-child { border-radius: 4px 0 0 4px; }
+    .seg button:last-child { border-radius: 0 4px 4px 0; border-right: 1px solid #3a3e44; }
+    .seg button.active { background: #3d6ff5; color: #fff; border-color: #3d6ff5; }
+    .sub-label { color: #9aa0a8; margin: 8px 0 4px; }
+    .model-list {
+      max-height: 150px;
+      overflow-y: auto;
+      background: #1a1c1f;
+      border: 1px solid #3a3e44;
+      border-radius: 4px;
+      padding: 2px;
+    }
+    .model-item {
+      padding: 3px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .model-item.empty { color: #767c85; cursor: default; }
+    .model-item.active { background: #3d6ff5; color: #fff; }
+    .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
     .hint { color: #767c85; font-size: 11px; margin-top: 4px; line-height: 1.5; }
     #log {
       font-family: Consolas, monospace;
@@ -195,11 +233,11 @@
         <div class="row" style="margin-top:6px;">
           <div class="label">尺寸档</div>
           <div class="grow">
-            <select id="sizeTier">
-              <option value="1024">1K（1024 短边）</option>
-              <option value="2048" selected>2K（2048 短边）</option>
-              <option value="4096">4K（4096 短边）</option>
-            </select>
+            <div class="seg" id="sizeTierSeg">
+              <button type="button" data-v="1024">1K</button>
+              <button type="button" data-v="2048" class="active">2K</button>
+              <button type="button" data-v="4096">4K</button>
+            </div>
           </div>
         </div>
         <div class="row">
@@ -250,13 +288,14 @@
           <div class="row">
             <div class="label">协议</div>
             <div class="grow">
-              <select id="protocol">
-                <option value="openai">OpenAI 风格 (/v1/images/edits)</option>
-                <option value="gemini">Gemini 风格 (:generateContent)</option>
-                <option value="chat">对话式 (/v1/chat/completions)</option>
-              </select>
+              <div class="seg" id="protocolSeg">
+                <button type="button" data-v="openai" class="active">OpenAI</button>
+                <button type="button" data-v="gemini">Gemini</button>
+                <button type="button" data-v="chat">对话式</button>
+              </div>
             </div>
           </div>
+          <div class="hint" id="protocolHint"></div>
           <div class="row">
             <div class="label">模型</div>
             <div class="grow"><input type="text" id="model" placeholder="点下方按钮拉取，或手动填写" /></div>
@@ -265,12 +304,12 @@
             <button id="btnPullModels">拉取模型列表</button>
             <button id="btnSaveCfg">保存配置</button>
           </div>
-          <div class="row" style="margin-top:6px;">
-            <div class="label">可选模型</div>
-            <div class="grow"><select id="modelPicker"><option value="">（未拉取）</option></select></div>
+          <div class="sub-label">可选模型</div>
+          <div id="modelList" class="model-list">
+            <div class="model-item empty">（未拉取，先填地址再点「拉取模型列表」）</div>
           </div>
           <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。</div>
-          <div class="hint">nano banana：直连 Gemini 选「Gemini 风格」；只有对话接口的中转站选「对话式」。</div>
+          <div class="hint">nano banana：直连 Gemini 选「Gemini」；只有对话接口的中转站选「对话式」。</div>
         </div>
 
         <div class="section">
