@@ -85,10 +85,20 @@
       align-items: center;
       cursor: pointer;
     }
-    .row { display: flex; align-items: center; margin-bottom: 6px; }
+    /* 参数行：Photoshop 面板（UXP）会给原生输入控件一个偏大的布局盒子，
+       光靠 margin 收不紧，这里把行高和控件高度都钉死。 */
+    .row {
+      display: flex;
+      align-items: center;
+      height: 26px;
+      min-height: 26px;
+      max-height: 26px;
+      margin-bottom: 6px;
+      overflow: hidden;
+    }
     .row:last-child { margin-bottom: 0; }
-    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; }
-    .grow { flex: 1 1 auto; min-width: 0; }
+    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; line-height: 26px; }
+    .grow { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
     input[type="text"], input[type="password"], input[type="number"], textarea, select {
       width: 100%;
       background: #1a1c1f;
@@ -99,14 +109,21 @@
       font-size: 12px;
       font-family: inherit;
     }
+    /* 单行输入框与下拉框统一钉到 24px，避免宿主把它们撑成一大块。 */
+    input[type="text"], input[type="password"], input[type="number"], select {
+      height: 24px;
+      min-height: 24px;
+      max-height: 24px;
+      padding: 0 6px;
+    }
     textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
-    select { padding: 4px; }
     button {
       background: #3a3e44;
       color: #e3e5e8;
       border: none;
       border-radius: 4px;
-      padding: 5px 10px;
+      height: 26px;
+      padding: 0 10px;
       font-size: 12px;
       font-family: inherit;
       cursor: pointer;
@@ -142,7 +159,7 @@
     }
     .task .tname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .task .tstate { flex: 0 0 auto; margin-left: 6px; color: #9aa0a8; }
-    .task .tkill { flex: 0 0 auto; margin-left: 6px; padding: 2px 6px; font-size: 11px; }
+    .task .tkill { flex: 0 0 auto; margin-left: 6px; height: 20px; padding: 0 6px; font-size: 11px; }
     #preview {
       display: flex;
       gap: 6px;
