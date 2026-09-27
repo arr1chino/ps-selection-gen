@@ -1,0 +1,59 @@
+{
+  "id": "com.vibe.selectiongen",
+  "name": "选区生图",
+  "version": "0.1.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": [
+    { "app": "PS", "minVersion": "24.2.0" }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "mainPanel",
+      "label": { "default": "选区生图" },
+      "minimumSize": { "width": 260, "height": 320 },
+      "maximumSize": { "width": 1600, "height": 1600 },
+      "preferredDockedSize": { "width": 320, "height": 720 },
+      "preferredFloatingSize": { "width": 360, "height": 720 },
+      "icons": [
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/icon.png",
+          "scale": [1, 2],
+          "theme": ["darkest", "dark", "medium"]
+        },
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/icon.png",
+          "scale": [1, 2],
+          "theme": ["lightest", "light"]
+        }
+      ]
+    }
+  ],
+  "icons": [
+    {
+      "width": 23,
+      "height": 23,
+      "path": "icons/icon.png",
+      "scale": [1, 2],
+      "theme": ["darkest", "dark", "medium"],
+      "species": ["pluginList"]
+    },
+    {
+      "width": 23,
+      "height": 23,
+      "path": "icons/icon.png",
+      "scale": [1, 2],
+      "theme": ["lightest", "light"],
+      "species": ["pluginList"]
+    }
+  ],
+  "requiredPermissions": {
+    "network": { "domains": "all" },
+    "localFileSystem": "fullAccess"
+  }
+}

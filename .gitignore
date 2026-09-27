@@ -1,0 +1,10 @@
+# 依赖与编辑器产物
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# 本地测试时留下的临时素材
+test/tmp/
