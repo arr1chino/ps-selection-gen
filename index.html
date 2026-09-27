@@ -94,14 +94,13 @@
     .row {
       display: flex;
       align-items: center;
-      height: 34px;
-      min-height: 34px;
-      max-height: 34px;
+      height: 42px;
+      min-height: 42px;
+      max-height: 42px;
       margin-bottom: 8px;
-      overflow: hidden;
     }
     .row:last-child { margin-bottom: 0; }
-    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; line-height: 34px; }
+    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; line-height: 42px; }
     .grow { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
     input[type="text"], input[type="password"], input[type="number"], textarea, select {
       width: 100%;
@@ -118,20 +117,28 @@
        框外、上沿被裁掉，在 PS 里看到的就是「字没露全」。上下各留 4px 内边距，
        18px 行高正好填满 28px 的框。 */
     input[type="text"], input[type="password"], input[type="number"], select {
-      height: 28px;
-      min-height: 28px;
-      max-height: 28px;
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
       min-width: 0;
-      padding: 4px 8px;
+      padding: 6px 8px;
       line-height: 18px;
     }
-    textarea { resize: vertical; min-height: 76px; padding: 8px; line-height: 1.6; }
+    /* 多行框同样要写死像素行高：写 1.6 这种相对值，UXP 会按宿主字号算，
+       算出来的行高比浏览器大，最后一行就被下沿切掉。 */
+    textarea {
+      resize: vertical;
+      height: 96px;
+      min-height: 96px;
+      padding: 10px;
+      line-height: 20px;
+    }
     button {
       background: #3a3e44;
       color: #e3e5e8;
       border: none;
       border-radius: 4px;
-      height: 28px;
+      height: 32px;
       padding: 0 10px;
       font-size: 12px;
       font-family: inherit;
@@ -144,10 +151,10 @@
     .btn-row button { flex: 1 1 0; }
     /* 档位切换：不用原生下拉框——Windows 的原生弹出列表不归我们管，
        字体和配色都会跟面板对不上。 */
-    .seg { display: flex; height: 28px; }
+    .seg { display: flex; height: 32px; }
     .seg button {
       flex: 1 1 0;
-      height: 28px;
+      height: 32px;
       min-width: 0;
       padding: 0 4px;
       border-radius: 0;
@@ -155,7 +162,6 @@
       border-right: none;
       background: #33373d;
       color: #b9bfc7;
-      overflow: hidden;
     }
     .seg button:first-child { border-radius: 4px 0 0 4px; }
     .seg button:last-child { border-radius: 0 4px 4px 0; border-right: 1px solid #3a3e44; }
@@ -170,60 +176,61 @@
       padding: 2px;
     }
     .model-item {
-      padding: 3px 6px;
+      padding: 5px 6px;
       border-radius: 3px;
       cursor: pointer;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      line-height: 18px;
     }
     .model-item.empty { color: #767c85; cursor: default; }
     .model-item.active { background: #3d6ff5; color: #fff; }
     .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
     /* padding-top 不是装饰：UXP 里块级文字的首行会被上沿裁掉一两个像素，
        留一点顶部内边距，字才完整。 */
-    .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 3px; line-height: 1.6; }
+    .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 6px; line-height: 20px; }
     /* 设置页单独放宽：这一页是配一次就不常来的，可以滚动，
        所以行距、控件高度都给足，别让人点不中输入框、看不清字。
        主界面的紧凑尺寸不受影响（那里要挤下任务队列和日志）。 */
     #settingsBody { padding: 10px; }
     #settingsBody .section { padding: 10px; margin-bottom: 10px; }
     #settingsBody .row {
-      height: 42px;
-      min-height: 42px;
-      max-height: 42px;
+      height: 48px;
+      min-height: 48px;
+      max-height: 48px;
       margin-bottom: 10px;
-      overflow: hidden;
     }
     #settingsBody .row:last-child { margin-bottom: 0; }
-    #settingsBody .label { width: 66px; flex: 0 0 66px; line-height: 42px; font-size: 12px; }
+    #settingsBody .label { width: 68px; flex: 0 0 68px; line-height: 48px; font-size: 12px; }
     #settingsBody input[type="text"], #settingsBody input[type="password"] {
-      height: 34px;
-      min-height: 34px;
-      max-height: 34px;
-      padding: 6px 10px;
+      height: 36px;
+      min-height: 36px;
+      max-height: 36px;
+      padding: 7px 10px;
       line-height: 20px;
       font-size: 13px;
     }
-    #settingsBody .seg { height: 34px; }
-    #settingsBody .seg button { height: 34px; font-size: 12px; padding: 0 6px; }
+    #settingsBody .seg { height: 36px; }
+    #settingsBody .seg button { height: 36px; font-size: 12px; padding: 0 6px; }
     #settingsBody .btn-row { gap: 8px; margin-top: 10px; }
-    #settingsBody .btn-row button { height: 34px; font-size: 13px; }
-    #settingsBody .hint { font-size: 12px; line-height: 1.7; margin-top: 8px; padding-top: 3px; }
-    #settingsBody .sub-label { font-size: 12px; margin: 14px 0 6px; }
+    #settingsBody .btn-row button { height: 36px; font-size: 13px; }
+    #settingsBody .hint { font-size: 12px; line-height: 22px; margin-top: 8px; padding-top: 6px; }
+    #settingsBody .sub-label { font-size: 12px; line-height: 22px; margin: 14px 0 6px; padding-top: 2px; }
     #settingsBody .model-list { max-height: 190px; padding: 4px; }
-    #settingsBody .model-item { padding: 7px 8px; font-size: 13px; margin-bottom: 2px; }
+    #settingsBody .model-item { padding: 8px; font-size: 13px; line-height: 20px; margin-bottom: 2px; }
     #settingsBody .model-item:last-child { margin-bottom: 0; }
-    #settingsBody .model-sep { font-size: 12px; padding: 8px 8px 3px; }
+    #settingsBody .model-sep { font-size: 12px; line-height: 20px; padding: 8px 8px 3px; }
+    #settingsBody .section-title { padding-top: 2px; }
     #log {
       font-family: Consolas, monospace;
       font-size: 11px;
-      line-height: 1.55;
+      line-height: 19px;
       max-height: 160px;
       overflow-y: auto;
       background: #17191b;
       border-radius: 4px;
-      padding: 8px;
+      padding: 9px 8px 8px;
     }
     .lg-info { color: #9db2cc; }
     .lg-ok { color: #79c48a; }
@@ -267,7 +274,8 @@
 
       <div class="section">
         <div class="section-title"><span>① 提示词</span></div>
-        <textarea id="prompt" placeholder="每行一条提示词；写几行就生成几张。"></textarea>
+        <textarea id="prompt" placeholder="每行一条提示词"></textarea>
+        <div class="hint">一行 = 生成一张；写几行就批量生成几张，空行会忽略。</div>
         <div class="row" style="margin-top:6px;">
           <div class="label">尺寸档</div>
           <div class="grow">
