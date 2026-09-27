@@ -135,6 +135,28 @@ function fillForm() {
   $('timeout').value = cfg.timeout || 180;
 }
 
+/* 顶部状态条：让用户一眼看出 API 配好没有，不用点进设置 */
+function updateApiState() {
+  var ready = !!(cfg.baseUrl && cfg.model);
+  var text = ready
+    ? '模型：' + cfg.model
+    : cfg.baseUrl
+      ? '已填地址，未选模型'
+      : '未配置 API（点右上角「设置」）';
+
+  var bar = $('apiState');
+  if (bar) {
+    bar.textContent = text;
+    bar.className = ready ? 'ok' : '';
+  }
+  var box = $('settingsState');
+  if (box) {
+    box.textContent = ready
+      ? '已配置：' + cfg.baseUrl + ' ｜ 模型 ' + cfg.model + ' ｜ 协议 ' + (cfg.protocol || 'openai')
+      : '还没配好。至少要填「接口地址」并选定「模型」，才能生成。';
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  按钮                                                              */
 /* ------------------------------------------------------------------ */
@@ -145,6 +167,7 @@ async function onSaveConfig() {
   var where = await store.saveApiKey($('apiKey').value);
   if (!stored) log('配置写入本地失败', 'err');
   else log('配置已保存（Key 存储位置：' + where + '）', 'ok');
+  updateApiState();
 }
 
 async function onPullModels() {
@@ -194,6 +217,7 @@ async function onPullModels() {
   } finally {
     btn.disabled = false;
     btn.textContent = '拉取模型列表';
+    updateApiState();
   }
 }
 
@@ -203,6 +227,11 @@ async function onGenerate() {
     return;
   }
   readForm();
+  if (!cfg.baseUrl || !cfg.model) {
+    log('还没配好 API：先在「设置」里填接口地址并选定模型', 'err');
+    openSettings();
+    return;
+  }
   store.saveConfig(cfg);
   await store.saveApiKey($('apiKey').value);
 
@@ -241,16 +270,16 @@ function onTaskStateChanged() {
 /*  启动                                                              */
 /* ------------------------------------------------------------------ */
 
-function toggleSection() {
-  var body = $('secApi');
-  var head = $('apiHeadState');
-  if (body.className === 'collapsed') {
-    body.className = '';
-    head.textContent = '展开 ▾';
-  } else {
-    body.className = 'collapsed';
-    head.textContent = '收起 ▸';
-  }
+function openSettings() {
+  var panel = $('settingsPanel');
+  if (panel) panel.className = 'open';
+  updateApiState();
+}
+
+function closeSettings() {
+  var panel = $('settingsPanel');
+  if (panel) panel.className = '';
+  updateApiState();
 }
 
 async function boot() {
@@ -262,7 +291,8 @@ async function boot() {
   $('btnPullModels').addEventListener('click', onPullModels);
   $('btnGenerate').addEventListener('click', onGenerate);
   $('btnStopAll').addEventListener('click', onStopAll);
-  $('secApiHead').addEventListener('click', toggleSection);
+  $('btnOpenSettings').addEventListener('click', openSettings);
+  $('btnCloseSettings').addEventListener('click', closeSettings);
 
   $('modelPicker').addEventListener('change', function (ev) {
     var v = ev.target.value;
@@ -270,11 +300,13 @@ async function boot() {
     $('model').value = v;
     cfg.model = v;
     store.saveConfig(cfg);
+    updateApiState();
   });
 
   renderTasks(tasks.list());
+  updateApiState();
   log('面板已就绪', 'ok');
-  log('用法：填接口地址和 Key → 拉取模型 → 选模型 → 在 PS 里框选 → 写提示词 → 从选区生成', 'info');
+  log('用法：点右上角「设置」配好接口和模型 → 回到主界面写提示词 → 在 PS 里框选 → 从选区生成', 'info');
 }
 
 boot();
