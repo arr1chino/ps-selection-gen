@@ -44,14 +44,18 @@
     }
     #apiState.ok { color: #79c48a; }
     #btnOpenSettings { flex: 0 0 auto; padding: 3px 10px; margin-left: 6px; }
+    /* 设置视图：用「两块内容互斥显示」代替绝对定位浮层。
+       Photoshop 的面板引擎对绝对定位的层叠处理不可靠，浮层会被主界面盖住，
+       出现文字叠文字、输入框叠输入框。 */
     #settingsPanel {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
       display: none;
       flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
       background: #1f2124;
     }
     #settingsPanel.open { display: flex; }
+    #topbar.hidden, #body.hidden { display: none; }
     #settingsHead {
       flex: 0 0 auto;
       display: flex;
@@ -114,6 +118,7 @@
       height: 24px;
       min-height: 24px;
       max-height: 24px;
+      min-width: 0;
       padding: 0 6px;
     }
     textarea { resize: vertical; min-height: 64px; line-height: 1.5; }

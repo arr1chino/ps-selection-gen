@@ -273,12 +273,22 @@ function onTaskStateChanged() {
 function openSettings() {
   var panel = $('settingsPanel');
   if (panel) panel.className = 'open';
+  // 设置与主界面互斥显示：宿主对绝对定位浮层的层叠处理不可靠，
+  // 留着主界面在下面会被画到设置上面来。
+  var top = $('topbar');
+  if (top) top.className = 'hidden';
+  var main = $('body');
+  if (main) main.className = 'hidden';
   updateApiState();
 }
 
 function closeSettings() {
   var panel = $('settingsPanel');
   if (panel) panel.className = '';
+  var top = $('topbar');
+  if (top) top.className = '';
+  var main = $('body');
+  if (main) main.className = '';
   updateApiState();
 }
 
