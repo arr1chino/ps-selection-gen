@@ -94,14 +94,14 @@
     .row {
       display: flex;
       align-items: center;
-      height: 26px;
-      min-height: 26px;
-      max-height: 26px;
-      margin-bottom: 6px;
+      height: 34px;
+      min-height: 34px;
+      max-height: 34px;
+      margin-bottom: 8px;
       overflow: hidden;
     }
     .row:last-child { margin-bottom: 0; }
-    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; line-height: 26px; }
+    .label { width: 62px; flex: 0 0 62px; color: #9aa0a8; line-height: 34px; }
     .grow { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
     input[type="text"], input[type="password"], input[type="number"], textarea, select {
       width: 100%;
@@ -113,21 +113,25 @@
       font-size: 12px;
       font-family: inherit;
     }
-    /* 单行输入框与下拉框统一钉到 24px，避免宿主把它们撑成一大块。 */
+    /* 单行输入框：高度钉死，并且**必须自己写 line-height**。
+       UXP 里输入框的文字是按宿主自己的行高画的，不写这一行，首行字会被顶到
+       框外、上沿被裁掉，在 PS 里看到的就是「字没露全」。上下各留 4px 内边距，
+       18px 行高正好填满 28px 的框。 */
     input[type="text"], input[type="password"], input[type="number"], select {
-      height: 24px;
-      min-height: 24px;
-      max-height: 24px;
+      height: 28px;
+      min-height: 28px;
+      max-height: 28px;
       min-width: 0;
-      padding: 0 6px;
+      padding: 4px 8px;
+      line-height: 18px;
     }
-    textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
+    textarea { resize: vertical; min-height: 76px; padding: 8px; line-height: 1.6; }
     button {
       background: #3a3e44;
       color: #e3e5e8;
       border: none;
       border-radius: 4px;
-      height: 26px;
+      height: 28px;
       padding: 0 10px;
       font-size: 12px;
       font-family: inherit;
@@ -140,10 +144,10 @@
     .btn-row button { flex: 1 1 0; }
     /* 档位切换：不用原生下拉框——Windows 的原生弹出列表不归我们管，
        字体和配色都会跟面板对不上。 */
-    .seg { display: flex; height: 24px; }
+    .seg { display: flex; height: 28px; }
     .seg button {
       flex: 1 1 0;
-      height: 24px;
+      height: 28px;
       min-width: 0;
       padding: 0 4px;
       border-radius: 0;
@@ -176,33 +180,36 @@
     .model-item.empty { color: #767c85; cursor: default; }
     .model-item.active { background: #3d6ff5; color: #fff; }
     .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
-    .hint { color: #767c85; font-size: 11px; margin-top: 4px; line-height: 1.5; }
+    /* padding-top 不是装饰：UXP 里块级文字的首行会被上沿裁掉一两个像素，
+       留一点顶部内边距，字才完整。 */
+    .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 3px; line-height: 1.6; }
     /* 设置页单独放宽：这一页是配一次就不常来的，可以滚动，
        所以行距、控件高度都给足，别让人点不中输入框、看不清字。
        主界面的紧凑尺寸不受影响（那里要挤下任务队列和日志）。 */
     #settingsBody { padding: 10px; }
     #settingsBody .section { padding: 10px; margin-bottom: 10px; }
     #settingsBody .row {
-      height: 34px;
-      min-height: 34px;
-      max-height: 34px;
+      height: 42px;
+      min-height: 42px;
+      max-height: 42px;
       margin-bottom: 10px;
       overflow: hidden;
     }
     #settingsBody .row:last-child { margin-bottom: 0; }
-    #settingsBody .label { width: 66px; flex: 0 0 66px; line-height: 34px; font-size: 12px; }
+    #settingsBody .label { width: 66px; flex: 0 0 66px; line-height: 42px; font-size: 12px; }
     #settingsBody input[type="text"], #settingsBody input[type="password"] {
-      height: 30px;
-      min-height: 30px;
-      max-height: 30px;
-      padding: 0 8px;
+      height: 34px;
+      min-height: 34px;
+      max-height: 34px;
+      padding: 6px 10px;
+      line-height: 20px;
       font-size: 13px;
     }
-    #settingsBody .seg { height: 30px; }
-    #settingsBody .seg button { height: 30px; font-size: 12px; padding: 0 6px; }
+    #settingsBody .seg { height: 34px; }
+    #settingsBody .seg button { height: 34px; font-size: 12px; padding: 0 6px; }
     #settingsBody .btn-row { gap: 8px; margin-top: 10px; }
-    #settingsBody .btn-row button { height: 32px; font-size: 13px; }
-    #settingsBody .hint { font-size: 12px; line-height: 1.7; margin-top: 8px; }
+    #settingsBody .btn-row button { height: 34px; font-size: 13px; }
+    #settingsBody .hint { font-size: 12px; line-height: 1.7; margin-top: 8px; padding-top: 3px; }
     #settingsBody .sub-label { font-size: 12px; margin: 14px 0 6px; }
     #settingsBody .model-list { max-height: 190px; padding: 4px; }
     #settingsBody .model-item { padding: 7px 8px; font-size: 13px; margin-bottom: 2px; }
@@ -216,7 +223,7 @@
       overflow-y: auto;
       background: #17191b;
       border-radius: 4px;
-      padding: 6px;
+      padding: 8px;
     }
     .lg-info { color: #9db2cc; }
     .lg-ok { color: #79c48a; }
@@ -228,12 +235,12 @@
       align-items: center;
       background: #1f2225;
       border-radius: 4px;
-      padding: 4px 6px;
+      padding: 6px 8px;
       margin-bottom: 4px;
     }
-    .task .tname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .task .tstate { flex: 0 0 auto; margin-left: 6px; color: #9aa0a8; }
-    .task .tkill { flex: 0 0 auto; margin-left: 6px; height: 20px; padding: 0 6px; font-size: 11px; }
+    .task .tname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 18px; }
+    .task .tstate { flex: 0 0 auto; margin-left: 6px; color: #9aa0a8; line-height: 18px; }
+    .task .tkill { flex: 0 0 auto; margin-left: 6px; height: 22px; padding: 0 6px; font-size: 11px; }
     #preview {
       display: flex;
       gap: 6px;
@@ -260,7 +267,7 @@
 
       <div class="section">
         <div class="section-title"><span>① 提示词</span></div>
-        <textarea id="prompt" placeholder="每行一条提示词。单行=生成一张；多行=按行批量生成。"></textarea>
+        <textarea id="prompt" placeholder="每行一条提示词；写几行就生成几张。"></textarea>
         <div class="row" style="margin-top:6px;">
           <div class="label">尺寸档</div>
           <div class="grow">
