@@ -45,6 +45,7 @@ ps-selection-gen/
 │  ├─ queue.js            并发池 / PS 串行锁 / 任务表
 │  └─ pipeline.js         一次批量生成的完整流程编排
 ├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（36 项断言）
+├─ tools/                 一键安装脚本（Windows）
 ├─ CHANGELOG.md           版本更新日志
 └─ icons/icon.png         插件图标
 ```
@@ -61,12 +62,29 @@ node test/test-core.js
 
 ## 怎么装进 Photoshop
 
-1. 装 **UXP Developer Tool**（Adobe Creative Cloud 里搜，或从 Adobe 官网下）。
-2. 打开它，点 **Add Plugin…**，选中本目录下的 `manifest.json`。
-3. 点 **Load**。在 Photoshop 里打开 菜单 `插件 → 选区生图` 就能看到面板。
-4. 改动代码后，在 UXP Developer Tool 里点 **Reload** 即可生效。
+要求 Photoshop 24.2 以上（用到 `imaging` 像素 API）。装法有两种，按需要挑一种。
 
-要求 Photoshop 24.2 以上（用到 `imaging` 像素 API）。
+### 方法一：直接拷进 Plug-ins 目录（推荐，不需要 Adobe 账号）
+
+Photoshop 启动时会扫描自己安装目录下的 `Plug-ins` 文件夹，
+放在里面的文件夹只要含有 `manifest.json` 就会被当成 UXP 插件加载。
+网上流传的第三方插件（sd-ppp2、像素起子等）都是这么装的。
+
+1. **先完全关闭 Photoshop**（它只在启动时扫描插件目录）。
+2. 双击 `tools/安装到Photoshop.bat`，弹窗询问时点「是」给它管理员权限。
+3. 打开 Photoshop，菜单 `增效工具 / 插件 → 选区生图`。
+
+脚本会优先在 `Plug-ins` 下建一个**目录链接**指向本仓库，
+这样以后改代码不用重新安装，**重启 Photoshop 就能看到新版本**。
+如果系统不允许建链接，它会退化成直接复制一份。
+
+卸载就是删掉 `Plug-ins/选区生图` 这个文件夹。
+
+### 方法二：UXP Developer Tool（需要在用 Creative Cloud，适合边改边调）
+
+1. 从 Creative Cloud 桌面版里装 **UXP Developer Tool**（Adobe 官方唯一的分发渠道）。
+2. 打开它，点 **Add Plugin…**，选中本目录下的 `manifest.json`。
+3. 点 **Load**，PS 里就会出现面板；改代码后点 **Reload** 立即生效，不用重启 PS。
 
 ## 怎么用
 

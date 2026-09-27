@@ -9,6 +9,11 @@
 
 ## [未发布]
 
+### 新增
+
+- **一键安装脚本**（`tools/安装到Photoshop.bat`）：把插件装进 Photoshop 的 `Plug-ins` 目录，
+  绕过对 Creative Cloud 和 UXP Developer Tool 的依赖。默认建目录链接，改完代码重启 PS 即可生效。
+
 ### 待办
 
 - 不规则选区的正确贴回：现在只按外接矩形处理，计划把选区当图层蒙版用，裁掉溢出部分。
