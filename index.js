@@ -140,9 +140,9 @@ function fillForm() {
 
 /* 每个协议的接口路径，写在设置里当说明用 */
 var PROTOCOL_HINT = {
-  openai: '走 POST /v1/images/edits：选区图当参考图上传，OpenAI 风格的中转站大多用这个。',
-  gemini: '走 POST :generateContent：直连 Google Gemini / nano banana 时选这个。',
-  chat: '走 POST /v1/chat/completions：只有对话接口的中转站选这个，nano banana 中转常见。'
+  openai: '选区图当参考图 POST 到 /v1/images/edits，多数中转站用这个。',
+  gemini: '直连 Google Gemini / nano banana 选这个（:generateContent）。',
+  chat: '只有对话接口的中转站选这个，nano banana 中转常见。'
 };
 
 function segButtons(id) {
