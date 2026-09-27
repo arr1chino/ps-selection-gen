@@ -177,6 +177,37 @@
     .model-item.active { background: #3d6ff5; color: #fff; }
     .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
     .hint { color: #767c85; font-size: 11px; margin-top: 4px; line-height: 1.5; }
+    /* 设置页单独放宽：这一页是配一次就不常来的，可以滚动，
+       所以行距、控件高度都给足，别让人点不中输入框、看不清字。
+       主界面的紧凑尺寸不受影响（那里要挤下任务队列和日志）。 */
+    #settingsBody { padding: 10px; }
+    #settingsBody .section { padding: 10px; margin-bottom: 10px; }
+    #settingsBody .row {
+      height: 34px;
+      min-height: 34px;
+      max-height: 34px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    #settingsBody .row:last-child { margin-bottom: 0; }
+    #settingsBody .label { width: 66px; flex: 0 0 66px; line-height: 34px; font-size: 12px; }
+    #settingsBody input[type="text"], #settingsBody input[type="password"] {
+      height: 30px;
+      min-height: 30px;
+      max-height: 30px;
+      padding: 0 8px;
+      font-size: 13px;
+    }
+    #settingsBody .seg { height: 30px; }
+    #settingsBody .seg button { height: 30px; font-size: 12px; padding: 0 6px; }
+    #settingsBody .btn-row { gap: 8px; margin-top: 10px; }
+    #settingsBody .btn-row button { height: 32px; font-size: 13px; }
+    #settingsBody .hint { font-size: 12px; line-height: 1.7; margin-top: 8px; }
+    #settingsBody .sub-label { font-size: 12px; margin: 14px 0 6px; }
+    #settingsBody .model-list { max-height: 190px; padding: 4px; }
+    #settingsBody .model-item { padding: 7px 8px; font-size: 13px; margin-bottom: 2px; }
+    #settingsBody .model-item:last-child { margin-bottom: 0; }
+    #settingsBody .model-sep { font-size: 12px; padding: 8px 8px 3px; }
     #log {
       font-family: Consolas, monospace;
       font-size: 11px;
