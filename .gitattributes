@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+# 图标是二进制资源，不要做换行或差异处理
+*.png binary
+*.ico binary
