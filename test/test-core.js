@@ -133,5 +133,66 @@ console.log('\n[7] 接口地址清洗');
   check('空地址报错', threw);
 }
 
+console.log('\n[8] 返回结果解析（nano banana 的各种返回形状）');
+{
+  const bw = 'iVBORw0KGgo=';
+  // Gemini 原生
+  const gem = api.extractImageBase64({
+    candidates: [{ content: { parts: [{ text: 'here' }, { inlineData: { mimeType: 'image/png', data: bw } }] } }]
+  });
+  check('Gemini inlineData', gem === bw);
+
+  // OpenAI 对话式：图片挂在 message.images
+  const chat = api.extractImageBase64({
+    choices: [{ message: { role: 'assistant', images: [{ image_url: { url: 'data:image/png;base64,' + bw } }] } }]
+  });
+  check('对话式 message.images 的 data URL 已剥掉前缀', chat === bw);
+
+  // 对话式：给的是外链，应先返回 URL 让人去下载
+  const linked = api.extractImageBase64({
+    choices: [{ message: { images: [{ image_url: { url: 'https://cdn.example.com/a.png' } }] } }]
+  });
+  check('对话式外链返回待下载 URL', linked && linked.url === 'https://cdn.example.com/a.png');
+
+  // 对话式：content 里混着 data URL
+  const inText = api.extractImageBase64({
+    choices: [{ message: { content: '画好了 ![img](data:image/png;base64,' + bw + ')' } }]
+  });
+  check('从正文里抠出 data URL', inText === bw);
+
+  // OpenAI 图片接口
+  const oai = api.extractImageBase64({ data: [{ b64_json: bw }] });
+  check('OpenAI b64_json', oai === bw);
+
+  check('认不出来就返回 null', api.extractImageBase64({ hello: 'world' }) === null);
+  check('stripDataUrl 对普通 base64 不改动', api.stripDataUrl(bw) === bw);
+}
+
+console.log('\n[9] 请求变体与降级重试的判断');
+{
+  const bw = 'iVBORw0KGgo=';
+  const cfg = { model: 'gemini-2.5-flash-image', baseUrl: 'https://api.example.com', protocol: 'chat' };
+  const req = { prompt: '一颗苹果', imageBase64: 'AQID', selW: 800, selH: 600, tier: '2048' };
+
+  const chatAttempts = api.buildAttempts('chat', cfg, req, 'https://api.example.com', {});
+  check('对话式先试带 modalities 的写法', Array.isArray(chatAttempts[0].payload.modalities));
+  check('对话式退路是不带 modalities', chatAttempts[1].payload.modalities === undefined);
+  check('对话式会把选区图放进 messages', JSON.stringify(chatAttempts[0].payload.messages).indexOf('data:image/jpeg;base64,') !== -1);
+
+  const gemAttempts = api.buildAttempts('gemini', cfg, req, 'https://api.example.com', { imageSize: '2K', aspectRatio: '4:3' });
+  check('Gemini 三个变体', gemAttempts.length === 3);
+  check('Gemini 第一个变体带 imageConfig', !!gemAttempts[0].payload.generationConfig.imageConfig);
+  check('Gemini 最后一个变体不带 imageConfig', gemAttempts[2].payload.generationConfig.imageConfig === undefined);
+  check('Gemini 请求地址含模型名', gemAttempts[0].url.indexOf('gemini-2.5-flash-image:generateContent') !== -1);
+
+  check('imageConfig 不支持时报错可识别', api.isUnknownFieldError(400, 'Unknown name "imageConfig"', 'imageConfig'));
+  check('modalities 不支持时报错可识别', api.isUnknownFieldError(400, 'unsupported field: modalities', 'modalities'));
+  check('鉴权失败不触发降级重试', !api.isUnknownFieldError(401, 'invalid api key', 'imageConfig'));
+  check('限流不触发降级重试', !api.isUnknownFieldError(429, 'rate limited', 'modalities'));
+  check('内容被拦截不触发降级重试', !api.isUnknownFieldError(400, 'safety blocked', 'imageConfig'));
+
+  check('对话式不带尺寸参数', JSON.stringify(api.buildSize('chat', 800, 600, '2048')) === '{}');
+}
+
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败\n');
 process.exit(fail === 0 ? 0 : 1);

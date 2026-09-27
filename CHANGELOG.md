@@ -15,11 +15,19 @@
   绕过对 Creative Cloud 和 UXP Developer Tool 的依赖。默认建目录链接，改完代码重启 PS 即可生效。
 - **设置页**：API 配置（地址 / Key / 协议 / 模型 / 拉取模型）整块移入独立的「设置」视图，
   主界面顶部改为一条状态栏，显示当前模型；没配好时点生成会提示并自动跳转设置。
+- **对话式协议**（`/v1/chat/completions`）：给只在对话接口里出图的模型用，
+  主要是中转站上的 nano banana。选区图放在 `messages[].content[].image_url`，
+  返回图从 `choices[0].message.images[]` 取。
+- **字段降级重试**：上游报 `Unknown name "imageConfig"` / 不认 `modalities` 这类错时，
+  自动去掉该字段重发一次；鉴权、限流、内容拦截不重试。
 
 ### 变更
 
 - 主界面去掉 API 配置区，分区重排为 ① 提示词 → ② 任务队列 → ③ 运行日志。
   尺寸档 / 并发数 / 超时属于每次生成都可能调整的参数，仍留在主界面。
+- 图片提取兼容更多返回形状：对话式 `message.images[]`、正文里的 data URL、外链自动下载。
+- Gemini 的 `aspectRatio` 只从模型接受的比例里就近取，去掉原先多列的 `9:21`（会吃 400）。
+- `test/test-core.js`：36 → 56 项断言。
 
 ### 待办
 

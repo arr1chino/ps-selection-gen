@@ -3,7 +3,7 @@
 一个极简的 Photoshop 插件：**框一个选区 → 写提示词 → 调用生图接口 → 结果自动贴回选区位置**。
 没有登录、没有账号、没有云端依赖，配置一次 API 就能用。
 
-> 状态：代码已完成，纯逻辑部分已通过自动化测试（36 项）。
+> 状态：代码已完成，纯逻辑部分已通过自动化测试（56 项）。
 > 因为环境中没有 Photoshop，**UI 与 PS 接口调用尚未在真实 PS 里跑过**，需要在本地做完这一轮验证。
 
 ## 来源说明
@@ -40,11 +40,11 @@ ps-selection-gen/
 ├─ src/
 │  ├─ util.js             零依赖工具（base64、UTF-8、图片格式嗅探、尺寸取整）
 │  ├─ store.js            配置持久化（普通配置走 localStorage，Key 走 secureStorage）
-│  ├─ api.js              生图接口对接（两种协议族 + 模型列表 + 尺寸换算）
+│  ├─ api.js              生图接口对接（三种协议族 + 模型列表 + 尺寸换算 + 字段降级重试）
 │  ├─ photoshop.js        Photoshop 交互（读选区、抓像素、贴回图层）
 │  ├─ queue.js            并发池 / PS 串行锁 / 任务表
 │  └─ pipeline.js         一次批量生成的完整流程编排
-├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（36 项断言）
+├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（56 项断言）
 ├─ tools/                 一键安装脚本（Windows）
 ├─ CHANGELOG.md           版本更新日志
 └─ icons/                 插件图标（icon@1x.png / icon@2x.png 两种尺寸）
@@ -58,7 +58,7 @@ ps-selection-gen/
 node test/test-core.js
 ```
 
-期望 36 项 `ok`、0 项 `FAIL`。
+期望 56 项 `ok`、0 项 `FAIL`。
 
 ## 怎么装进 Photoshop
 
@@ -106,6 +106,39 @@ Key 只存在本机，不会随项目上传。
 5. **① 提示词**：在 PS 里用矩形选框工具（M）框出要重绘的区域，然后写提示词。
    想一次出多张，就一行写一条；**②** 是任务队列，**③** 是运行日志。
 6. 点 **从选区生成**。跑的过程中可以随时点「全部中断」。
+
+---
+
+## 支持哪些接口
+
+设置里的「协议」有三个选项，对应三种调用形状。选错了不会炸，但会报 404 或 400，
+所以底下写清楚各自适用什么：
+
+| 协议 | 实际请求 | 适合 |
+| --- | --- | --- |
+| OpenAI 风格 | `POST {base}/v1/images/edits`（multipart） | 标准 OpenAI 图像接口、大部分中转站的 `gpt-image-1` / `flux` / `seedream` 等 |
+| Gemini 风格 | `POST {base}/v1beta/models/{model}:generateContent` | 直连 Gemini 官方接口，`inlineData` 传参考图，`imageConfig` 控制比例与档位 |
+| 对话式 | `POST {base}/v1/chat/completions` | 只在对话接口里提供出图能力的模型，尤其是中转站上的 nano banana |
+
+### nano banana 的情况
+
+nano banana 指 `gemini-2.5-flash-image` / `gemini-3-pro-image` 这一系。
+它有三种常见接法，插件里都覆盖了：
+
+1. **直连 Gemini**：选「Gemini 风格」，请求按 `generateContent` 发，
+   选区图放在 `inlineData`，出图尺寸走 `imageConfig`（档位 + 比例）。
+2. **中转站的对话接口**：选「对话式」，图片放在 `messages[].content[].image_url`，
+   返回的图从 `choices[0].message.images[]` 里取（数据 URL 会自动剥掉前缀，外链会自动下载）。
+3. **中转站的图片接口**：有些站把它也挂到 `/v1/images/edits` 上，那就选「OpenAI 风格」。
+
+另外做了一层**字段降级重试**：不同模型对可选字段的容忍度不一样
+（比如有的收到 `imageConfig` 直接回 `Unknown name "imageConfig"`，有的不认 `modalities`）。
+这类报错会被识别出来，自动去掉那个字段重发一次；鉴权失败、限流、内容拦截则原样报错，不浪费请求。
+
+比例只从模型真正接受的那几个里选（`1:1` `4:3` `3:4` `3:2` `2:3` `16:9` `9:16` `5:4` `4:5` `21:9`），
+就近取一个，避免框一条细长选区就吃到 400。
+
+> 以上是按各家公开接口形状整理的，**尚未在真实接口上逐家实测**（见文末「还没验证的部分」）。
 
 ---
 
@@ -175,8 +208,9 @@ base64 → 写临时文件 → app.open() 让 PS 解码
 
 ## 还没验证的部分
 
-已经用自动化测试覆盖的（`test/test-core.js`，36 项全过）：
-base64 编解码、中文提示词的 UTF-8 编码、图片格式嗅探、尺寸换算与比例保持、接口地址清洗、模型名过滤。
+已经用自动化测试覆盖的（`test/test-core.js`，56 项全过）：
+base64 编解码、中文提示词的 UTF-8 编码、图片格式嗅探、尺寸换算与比例保持、接口地址清洗、模型名过滤、
+各类返回结构的图片提取、请求字段被上游拒绝时的降级判断。
 
 必须在真实 Photoshop 里验证的：
 

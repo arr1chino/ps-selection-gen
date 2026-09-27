@@ -231,6 +231,7 @@
               <select id="protocol">
                 <option value="openai">OpenAI 风格 (/v1/images/edits)</option>
                 <option value="gemini">Gemini 风格 (:generateContent)</option>
+                <option value="chat">对话式 (/v1/chat/completions)</option>
               </select>
             </div>
           </div>
@@ -247,6 +248,7 @@
             <div class="grow"><select id="modelPicker"><option value="">（未拉取）</option></select></div>
           </div>
           <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。</div>
+          <div class="hint">nano banana：直连 Gemini 选「Gemini 风格」；只有对话接口的中转站选「对话式」。</div>
         </div>
 
         <div class="section">
