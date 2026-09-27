@@ -20,6 +20,8 @@
   返回图从 `choices[0].message.images[]` 取。
 - **字段降级重试**：上游报 `Unknown name "imageConfig"` / 不认 `modalities` 这类错时，
   自动去掉该字段重发一次；鉴权、限流、内容拦截不重试。
+- **持续集成**（`.github/workflows/test.yml`）：每次提交自动跑语法检查与
+  `test/test-core.js`，Node 18 / 20 双版本矩阵。
 
 ### 变更
 
@@ -28,6 +30,12 @@
 - 图片提取兼容更多返回形状：对话式 `message.images[]`、正文里的 data URL、外链自动下载。
 - Gemini 的 `aspectRatio` 只从模型接受的比例里就近取，去掉原先多列的 `9:21`（会吃 400）。
 - `test/test-core.js`：36 → 56 项断言。
+
+### 修复
+
+- **面板图标取不到**：清单里图标路径写成 `icons/icon@1x.png`，而 Photoshop 会自己往
+  基名后面拼 `@1x` / `@2x`，于是去找 `icons/icon@1x@1x.png`，日志里刷 `Scaled Icon ... not found`。
+  改成基名 `icons/icon.png`，由宿主拼后缀。
 
 ### 待办
 

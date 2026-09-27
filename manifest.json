@@ -21,14 +21,14 @@
         {
           "width": 23,
           "height": 23,
-          "path": "icons/icon@1x.png",
+          "path": "icons/icon.png",
           "scale": [1],
           "theme": ["darkest", "dark", "medium", "lightest", "light"]
         },
         {
           "width": 23,
           "height": 23,
-          "path": "icons/icon@2x.png",
+          "path": "icons/icon.png",
           "scale": [2],
           "theme": ["darkest", "dark", "medium", "lightest", "light"]
         }
@@ -39,7 +39,7 @@
     {
       "width": 23,
       "height": 23,
-      "path": "icons/icon@1x.png",
+      "path": "icons/icon.png",
       "scale": [1],
       "theme": ["darkest", "dark", "medium", "lightest", "light"],
       "species": ["pluginList", "generic"]
@@ -47,7 +47,7 @@
     {
       "width": 23,
       "height": 23,
-      "path": "icons/icon@2x.png",
+      "path": "icons/icon.png",
       "scale": [2],
       "theme": ["darkest", "dark", "medium", "lightest", "light"],
       "species": ["pluginList", "generic"]
