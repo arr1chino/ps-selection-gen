@@ -522,5 +522,6 @@ module.exports = {
   extractImageBase64: extractImageBase64,
   stripDataUrl: stripDataUrl,
   isUnknownFieldError: isUnknownFieldError,
-  buildAttempts: buildAttempts
+  buildAttempts: buildAttempts,
+  authHeaders: authHeaders
 };

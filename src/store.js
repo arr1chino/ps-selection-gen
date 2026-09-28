@@ -58,12 +58,27 @@ function loadConfig() {
       // 配置损坏就回到默认值，不要让插件起不来
     }
   }
+  // cfg.apiKey 是运行时字段（每次发请求前由面板填好），
+  // 它的持久化位置是下面的 KEY_SECRET，不该从配置 blob 里读回来
+  delete cfg.apiKey;
   return cfg;
 }
 
+/*
+ * 落盘前把 apiKey 剔掉。
+ * 这份配置在每个小动作里都会被重写（点一次模型、存一次设置），
+ * 让 Key 跟着在第二个地方多留一份，既没必要，也容易和真正的
+ * Key 存储不一致（改了 Key 而这份还是旧的）。
+ */
 function saveConfig(cfg) {
   try {
-    localStorage.setItem(KEY_CONFIG, JSON.stringify(cfg));
+    var out = {};
+    for (var k in cfg) {
+      if (!Object.prototype.hasOwnProperty.call(cfg, k)) continue;
+      if (k === 'apiKey') continue;
+      out[k] = cfg[k];
+    }
+    localStorage.setItem(KEY_CONFIG, JSON.stringify(out));
     return true;
   } catch (e) {
     return false;

@@ -157,6 +157,47 @@ function fillForm() {
   updateProtocolHint();
 }
 
+/* 取这次请求要用的 API Key，并把它挂到 cfg.apiKey 上。
+ *
+ * 这个函数是补一个实打实的漏洞：api.js 的鉴权头只认 cfg.apiKey，
+ * 但之前面板里没有任何一处给它赋过值——输入框里填了、也存盘了，
+ * 就是没进 cfg，于是生成请求是裸着发出去的，中转站一律回
+ * 401 Invalid token。而「拉取模型列表」那条路是自己现拼了
+ * { baseUrl, apiKey } 传进去的，所以它能通、生成不能通。
+ *
+ * 取值顺序：输入框优先；输入框空着（读回来失败、被清掉等）就回落到
+ * 存过的那份，并顺手回填输入框，免得再出现「明明存过却当成没填」。
+ */
+async function resolveApiKey() {
+  var el = $('apiKey');
+  var typed = el ? String(el.value || '').trim() : '';
+  if (typed) {
+    if (typed !== lastSavedKey) {
+      lastSavedKey = typed;
+      await store.saveApiKey(typed);
+    }
+    cfg.apiKey = typed;
+    return typed;
+  }
+
+  var info = await store.loadApiKeyDetailed();
+  if (info.key) {
+    if (el) el.value = info.key;
+    lastSavedKey = info.key;
+    cfg.apiKey = info.key;
+    log(
+      '输入框里没读到 Key，改用上次存过的（来自' +
+        (info.from === 'secure' ? '加密存储' : '本地存储') +
+        '，共 ' + info.key.length + ' 个字符）',
+      'info'
+    );
+    return info.key;
+  }
+
+  cfg.apiKey = '';
+  return '';
+}
+
 /* ---- 档位切换（自绘，不用原生下拉框） ------------------------------ */
 
 /* 每个协议的接口路径，写在设置里当说明用 */
@@ -246,6 +287,8 @@ async function onSaveConfig() {
   $('apiKey').value = keyToSave;
   var where = await store.saveApiKey(keyToSave);
   lastSavedKey = keyToSave;
+  // 必须同步进 cfg：真正发请求时读的是 cfg.apiKey，只停在输入框里没用
+  cfg.apiKey = keyToSave;
   updateApiState();
   if (!stored) {
     setSettingsState('配置写入本地失败', 'err');
@@ -279,12 +322,13 @@ async function onPullModels() {
     log('还没填接口地址：设置页「接口地址」那一栏', 'err');
     return;
   }
-  var keyNow = $('apiKey').value.trim();
+  var keyNow = await resolveApiKey();
   if (!keyNow) {
     setPullState('上面「API Key」还没填，填好再拉取。', 'err');
     log('还没填 API Key：设置页「API Key」那一栏', 'err');
     return;
   }
+  cfg.apiKey = keyNow;
   var btn = $('btnPullModels');
   btn.disabled = true;
   btn.textContent = '拉取中…';
@@ -424,13 +468,16 @@ async function onGenerate() {
     log('还没选模型：先去「设置」点「拉取模型列表」，再回主界面下拉框选一个，或点开下拉框用「手打」填', 'err');
     return;
   }
-  store.saveConfig(cfg);
-  // 只在填了东西的时候才存，避免"没读回来 → 空值覆盖"把存好的 Key 抹掉
-  var keyNow = $('apiKey').value.trim();
-  if (keyNow) {
-    lastSavedKey = keyNow;
-    await store.saveApiKey(keyNow);
+  // 没 Key 就别发了：裸着发出去一定是一句看不懂的 401，不如当场说清楚去哪填。
+  // （这里之前是个坑：输入框的值读出来存了盘，就是没进 cfg.apiKey。）
+  var keyNow = await resolveApiKey();
+  if (!keyNow) {
+    log('还没填 API Key：点右上角「设置」，在「API Key」那一栏填好再生成', 'err');
+    openSettings();
+    return;
   }
+  store.saveConfig(cfg);
+  log('本次请求携带 API Key：共 ' + keyNow.length + ' 个字符', 'info');
 
   var prompts = $('prompt').value.split('\n');
   running = true;
@@ -559,6 +606,7 @@ async function boot() {
     if (v === lastSavedKey) return;
     var where = await store.saveApiKey(v);
     lastSavedKey = v;
+    cfg.apiKey = v;
     if (where === '存不下来') {
       setSettingsState('Key 没存下来：本地存储和加密存储都用不了。', 'err');
       log('Key 没存下来：本地存储和加密存储都用不了', 'err');

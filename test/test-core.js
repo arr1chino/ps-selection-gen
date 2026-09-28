@@ -304,5 +304,58 @@ console.log('\n[11] 像素整理（读选区时把数据弄成能直接交给 JP
   check('数据为空时原样返回', nullRaw.changed === false);
 }
 
-console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败\n');
-process.exit(fail === 0 ? 0 : 1);
+console.log('\n[12] 请求真的带上了 API Key（401 Invalid token 的回归点）');
+// 这一段要等网络调用，包成异步块；收尾的统计放在它后面，别提前跑。
+(async function () {
+  // 鉴权头只认 cfg.apiKey。面板以前从没给它赋过值，
+  // 于是请求裸着发出去，中转站一律回 401。这里把这层锁死。
+  check('有 Key 时拼成 Bearer 头', api.authHeaders({ apiKey: 'sk-abc' })['Authorization'] === 'Bearer sk-abc',
+    JSON.stringify(api.authHeaders({ apiKey: 'sk-abc' })));
+  check('没有 apiKey 字段时不带鉴权头', !('Authorization' in api.authHeaders({})),
+    JSON.stringify(api.authHeaders({})));
+  check('apiKey 是空串时也不带', !('Authorization' in api.authHeaders({ apiKey: '' })));
+
+  // 端到端：把 fetch 换掉，亲眼看一遍真实发出去的请求头
+  const realFetch = global.fetch;
+  let seen = null;
+  global.fetch = async (url, opts) => {
+    seen = { url: String(url), headers: (opts && opts.headers) || {}, body: opts && opts.body };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ inlineData: { data: 'AAAA' } }] } }]
+      })
+    };
+  };
+  try {
+    const out = await api.generate(
+      { baseUrl: 'https://api.example.com', protocol: 'gemini', model: 'gpt-image-2', apiKey: 'sk-real-key' },
+      { prompt: '把背景换成蓝天', selW: 1000, selH: 1000, tier: '2048' }
+    );
+    check('生成请求确实发出去了', !!seen);
+    check('请求头带着 Bearer Key', seen && seen.headers['Authorization'] === 'Bearer sk-real-key',
+      seen && JSON.stringify(seen.headers));
+    check('Gemini 协议走 generateContent 路径', seen && seen.url.indexOf(':generateContent') !== -1, seen && seen.url);
+    check('返回的图片数据被解析出来', out && out.base64 === 'AAAA', out && out.base64);
+
+    // 反例：Key 没挂进 cfg（就是之前那个 bug 的形状），头里就该是空的
+    seen = null;
+    await api.generate(
+      { baseUrl: 'https://api.example.com', protocol: 'gemini', model: 'gpt-image-2' },
+      { prompt: 'x', selW: 512, selH: 512, tier: '1024' }
+    );
+    check('Key 没进 cfg 时头里没有 Authorization（这就是 401 的成因）',
+      seen && !seen.headers['Authorization'], seen && JSON.stringify(seen.headers));
+  } finally {
+    global.fetch = realFetch;
+  }
+})()
+  .catch(function (e) {
+    fail++;
+    console.log('  FAIL [12] 这一段抛异常 :: ' + ((e && e.message) || e));
+  })
+  .then(function () {
+    console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败\n');
+    process.exit(fail === 0 ? 0 : 1);
+  });
