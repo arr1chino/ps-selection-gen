@@ -190,6 +190,8 @@
     /* padding-top 不是装饰：UXP 里块级文字的首行会被上沿裁掉一两个像素，
        留一点顶部内边距，字才完整。 */
     .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 6px; line-height: 20px; }
+    .hint.good { color: #79c48a; }
+    .hint.bad { color: #e0857c; }
     /* 设置页单独放宽：这一页是配一次就不常来的，可以滚动，
        所以行距、控件高度都给足，别让人点不中输入框、看不清字。
        主界面的紧凑尺寸不受影响（那里要挤下任务队列和日志）。 */
@@ -350,6 +352,9 @@
             <button id="btnPullModels">拉取模型列表</button>
             <button id="btnSaveCfg">保存配置</button>
           </div>
+          <!-- 设置页打开时主界面的「运行日志」是看不见的，点按钮的结果必须写在这里，
+               否则拉取失败时用户什么反馈都收不到，看起来就像「点了没反应」。 -->
+          <div class="hint" id="pullState">点「拉取模型列表」，从接口读出可用模型。</div>
           <div class="sub-label">可选模型</div>
           <div id="modelList" class="model-list">
             <div class="model-item empty">（未拉取，先填地址再点「拉取模型列表」）</div>

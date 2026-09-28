@@ -35,6 +35,22 @@ function log(message, type) {
   line.textContent = '[' + hh + ':' + mm + ':' + ss + '] ' + message;
   box.appendChild(line);
   box.scrollTop = box.scrollHeight;
+  // 设置页打开时，主界面的日志是看不见的（两个视图互斥），
+  // 所以同一句话也要写到设置页里那行状态上，否则点按钮像「没反应」。
+  if (settingsOpen()) setState(message, type);
+}
+
+/* 设置页里的一行即时反馈：拉取/保存的结果都写在这里 */
+function setState(text, kind) {
+  var el = $('pullState');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'hint' + (kind === 'err' ? ' bad' : kind === 'ok' ? ' good' : '');
+}
+
+function settingsOpen() {
+  var p = $('settingsPanel');
+  return !!(p && String(p.className).indexOf('open') !== -1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -226,26 +242,53 @@ async function onSaveConfig() {
 async function onPullModels() {
   readForm();
   if (!cfg.baseUrl) {
+    setState('先填「接口地址」，再拉取模型列表。', 'err');
     log('先填接口地址', 'err');
     return;
   }
   var btn = $('btnPullModels');
   btn.disabled = true;
   btn.textContent = '拉取中…';
+  setState('拉取中…（最多等 15 秒）');
+
+  // 拉取也要有超时：地址不通时不给超时，按钮会永远停在「拉取中…」。
+  var controller = new AbortController();
+  var timer = setTimeout(function () {
+    controller.abort();
+  }, 15000);
+
   try {
-    var key = $('apiKey').value;
-    var res = await api.listModels({ baseUrl: cfg.baseUrl, apiKey: key });
+    var res = await api.listModels({ baseUrl: cfg.baseUrl, apiKey: $('apiKey').value }, controller.signal);
     modelsAll = res.ids;
     var likely = api.prioritizeImageModels(modelsAll);
     renderModelList(likely, modelsAll);
-    log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型', 'ok');
+    log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型，点下面的列表选一个', 'ok');
   } catch (e) {
-    log('拉取失败：' + e.message, 'err');
+    var msg = e && e.message ? e.message : String(e);
+    if (controller.signal.aborted) {
+      msg = '等了 15 秒没回应：地址不通、网络被挡，或 Key 无效';
+    } else {
+      msg = friendlyNetError(msg, cfg.baseUrl);
+    }
+    log('拉取失败：' + msg, 'err');
   } finally {
+    clearTimeout(timer);
     btn.disabled = false;
     btn.textContent = '拉取模型列表';
     updateApiState();
   }
+}
+
+/* 把底层报错翻成人看得懂的话。UXP 里地址不通时原话就是一句 "Failed to fetch"，
+   对着这句话没人知道该改什么。 */
+function friendlyNetError(msg, baseUrl) {
+  var m = String(msg || '');
+  if (/failed to fetch|network ?error|econnrefused|enotfound|getaddrinfo|dns|socket|refused/i.test(m)) {
+    return '连不上 ' + baseUrl + ' —— 检查地址是不是写错了（只写到域名，不要带 /v1），或者网络被挡了';
+  }
+  if (/abort/i.test(m)) return '请求被取消';
+  if (/json/i.test(m)) return '连上了，但返回的不是模型列表（' + m + '）';
+  return m;
 }
 
 /* ---- 模型列表（自绘列表，点一行即选中） ---------------------------- */
