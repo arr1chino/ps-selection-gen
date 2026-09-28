@@ -4,7 +4,7 @@
 没有登录、没有账号、没有云端依赖，配置一次 API 就能用。
 
 > 状态：代码已完成，纯逻辑部分已通过自动化测试（70 项）。
-> 面板已按本机 Photoshop 的 `Plug-ins` 目录接入（见「安装」），
+> 本机插件已放进 Photoshop 的 `Plug-ins` 目录，
 > 但「面板能否加载、选区读取与贴回是否准确」这一轮**真机验证尚未完成**，见文末「还没验证的部分」。
 
 ## 来源说明
@@ -60,7 +60,7 @@ ps-selection-gen/
 │  └─ pipeline.js         一次批量生成的完整流程编排
 ├─ test/test-core.js      不依赖 Photoshop 的纯逻辑测试（56 项断言）
 ├─ test/test-manifest.js  清单自检（14 项，防清单写坏导致插件整个消失）
-├─ tools/                 一键安装脚本（Windows）
+├─ tools/                 Windows 辅助脚本
 ├─ CHANGELOG.md           版本更新日志
 └─ icons/                 插件图标（icon@1x.png / icon@2x.png 两种尺寸）
 ```
@@ -78,29 +78,15 @@ node test/test-manifest.js
 
 ## 怎么装进 Photoshop
 
-要求 Photoshop 24.2 以上（用到 `imaging` 像素 API）。装法有两种，按需要挑一种。
+要求 Photoshop 24.2 以上。
 
-### 方法一：直接拷进 Plug-ins 目录（推荐，不需要 Adobe 账号）
+1. 完全关闭 Photoshop。
+2. 把整个包解压放进 Photoshop 安装目录下的 `Plug-ins` 文件夹（解压出来的文件夹里要能直接看到 `manifest.json`）。
+3. 打开 Photoshop，菜单 `增效工具 → 选区生图`。
 
-Photoshop 启动时会扫描自己安装目录下的 `Plug-ins` 文件夹，
-放在里面的文件夹只要含有 `manifest.json` 就会被当成 UXP 插件加载。
-网上流传的第三方插件（sd-ppp2、像素起子等）都是这么装的。
+卸载就是删掉 `Plug-ins` 里的这个文件夹。
 
-1. **先完全关闭 Photoshop**（它只在启动时扫描插件目录）。
-2. 双击 `tools/安装到Photoshop.bat`，弹窗询问时点「是」给它管理员权限。
-3. 打开 Photoshop，菜单 `增效工具 / 插件 → 选区生图`。
-
-脚本会优先在 `Plug-ins` 下建一个**目录链接**指向本仓库，
-这样以后改代码不用重新安装，**重启 Photoshop 就能看到新版本**。
-如果系统不允许建链接，它会退化成直接复制一份。
-
-卸载就是删掉 `Plug-ins/选区生图` 这个文件夹。
-
-### 方法二：UXP Developer Tool（需要在用 Creative Cloud，适合边改边调）
-
-1. 从 Creative Cloud 桌面版里装 **UXP Developer Tool**（Adobe 官方唯一的分发渠道）。
-2. 打开它，点 **Add Plugin…**，选中本目录下的 `manifest.json`。
-3. 点 **Load**，PS 里就会出现面板；改代码后点 **Reload** 立即生效，不用重启 PS。
+改完代码要**完全退出 Photoshop 再打开**，只关面板不会重新加载插件。
 
 ## 怎么用
 
