@@ -6,6 +6,7 @@ var store = require('./src/store.js');
 var api = require('./src/api.js');
 var queueLib = require('./src/queue.js');
 var pipeline = require('./src/pipeline.js');
+var U = require('./src/util.js');
 
 function $(id) {
   return document.getElementById(id);
@@ -307,7 +308,7 @@ async function onPullModels() {
     );
     log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型，点下面的列表选一个', 'ok');
   } catch (e) {
-    var msg = e && e.message ? e.message : String(e);
+    var msg = U.describeError(e) || '拉取失败，但没拿到原因';
     if (controller.signal.aborted) {
       msg = '等了 15 秒没回应：地址不通、网络被挡，或 Key 无效';
     } else {
@@ -415,7 +416,7 @@ async function onGenerate() {
     );
     log('这一批结束：成功 ' + summary.okCount + ' / 失败 ' + summary.failCount, summary.failCount ? 'warn' : 'ok');
   } catch (e) {
-    log('这一批没能启动：' + e.message, 'err');
+    log('这一批没能启动：' + (U.describeError(e) || 'Photoshop 拒绝了这次操作，但没给出原因'), 'err');
   } finally {
     running = false;
     setBusy(false);

@@ -29,6 +29,10 @@ async function readSelectionBoundsInModal() {
   var doc = app.activeDocument;
   if (!doc) throw new Error('Photoshop 里没有打开的文档');
 
+  // 三种读法都会失败时，把每一路的原因留下来，一起写进最后的报错里。
+  // 之前这里是静默 catch，三个都不行也只看到一句「没读到选区」，没法查。
+  var reasons = [];
+
   // 方法 1：UXP DOM
   try {
     var sel = doc.selection;
@@ -42,9 +46,12 @@ async function readSelectionBoundsInModal() {
           bottom: Math.round(b.bottom)
         };
       }
+      reasons.push('DOM 选区：边界是空的');
+    } else {
+      reasons.push('DOM 选区：读不到 selection');
     }
   } catch (e1) {
-    // 继续往下试
+    reasons.push('DOM 选区：' + (U.describeError(e1) || '没给出原因'));
   }
 
   // 方法 2：batchPlay 读 selection 属性（DOM 在部分版本/通道状态下会返回空）
@@ -76,9 +83,12 @@ async function readSelectionBoundsInModal() {
           bottom: Math.round(bottom)
         };
       }
+      reasons.push('batchPlay 选区属性：拿到了但边界无效');
+    } else {
+      reasons.push('batchPlay 选区属性：返回里没有 selection');
     }
   } catch (e2) {
-    // 继续往下
+    reasons.push('batchPlay 选区属性：' + (U.describeError(e2) || '没给出原因'));
   }
 
   // 方法 3：读选区通道的 bounds
@@ -107,15 +117,32 @@ async function readSelectionBoundsInModal() {
           bottom: Math.round(p2(cb.bottom))
         };
       }
+      reasons.push('选区通道 bounds：拿到了但边界无效');
+    } else {
+      reasons.push('选区通道 bounds：返回里没有 bounds');
     }
   } catch (e3) {
-    // 全部失败，下面统一报错
+    reasons.push('选区通道 bounds：' + (U.describeError(e3) || '没给出原因'));
   }
 
   throw new Error(
     '没读到选区。请先用矩形选框工具(M)拉一个选区；' +
-      '如果确实拉好了还是读不到，多半是文档处于 16/32 位模式，试试转成 8 位/通道。'
+      '如果确实拉好了还是读不到，多半是文档处于 16/32 位模式，试试转成 8 位/通道。' +
+      (reasons.length ? ' | 细节：' + reasons.join('；') : '') +
+      describeDoc(doc)
   );
+}
+
+/** 报错时捎上"当时是哪张图、多少位"，这两个信息往往直接指向原因 */
+function describeDoc(doc) {
+  if (!doc) return '';
+  var bits = '';
+  try {
+    if (doc.bitsPerChannel) bits = '，色深 ' + doc.bitsPerChannel + ' 位/通道';
+  } catch (eBits) {
+    // 读不到就不写
+  }
+  return ' | 当前文档：' + (doc.name || '(无名)') + bits;
 }
 
 function boundsToRect(b) {
@@ -137,79 +164,86 @@ function boundsToRect(b) {
  */
 async function captureSelection(maxEdge) {
   var out = null;
-  await core.executeAsModal(
-    async function () {
-      var doc = app.activeDocument;
-      if (!doc) throw new Error('Photoshop 里没有打开的文档');
+  try {
+    await core.executeAsModal(
+      async function () {
+        var doc = app.activeDocument;
+        if (!doc) throw new Error('Photoshop 里没有打开的文档');
 
-      var raw = await readSelectionBoundsInModal();
-      var rect = boundsToRect(raw);
+        var raw = await readSelectionBoundsInModal();
+        var rect = boundsToRect(raw);
 
-      // 限制发给模型的最大边，避免大图直接把内存和带宽打爆
-      var cw = rect.width;
-      var ch = rect.height;
-      var limit = maxEdge || 2048;
-      if (cw > limit || ch > limit) {
-        if (cw >= ch) {
-          ch = Math.max(1, Math.round((ch * limit) / cw));
-          cw = limit;
-        } else {
-          cw = Math.max(1, Math.round((cw * limit) / ch));
-          ch = limit;
+        // 限制发给模型的最大边，避免大图直接把内存和带宽打爆
+        var cw = rect.width;
+        var ch = rect.height;
+        var limit = maxEdge || 2048;
+        if (cw > limit || ch > limit) {
+          if (cw >= ch) {
+            ch = Math.max(1, Math.round((ch * limit) / cw));
+            cw = limit;
+          } else {
+            cw = Math.max(1, Math.round((cw * limit) / ch));
+            ch = limit;
+          }
         }
-      }
 
-      var pixelObj = null;
-      try {
-        pixelObj = await imaging.getPixels({
-          documentID: doc.id,
-          sourceBounds: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-          targetSize: { width: cw, height: ch },
-          componentSize: 8,
-          colorSpace: 'RGB',
-          applyAlpha: false
-        });
-      } catch (e) {
-        // 16/32 位文档下指定 componentSize:8 可能不被支持，去掉让它按原深度返回再自行降位
-        pixelObj = await imaging.getPixels({
-          documentID: doc.id,
-          sourceBounds: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-          targetSize: { width: cw, height: ch },
-          colorSpace: 'RGB',
-          applyAlpha: false
-        });
-      }
-
-      var imageData = pixelObj.imageData || pixelObj;
-
-      // 如果是 16/32 位返回，先转成 8 位再交给编码器
-      try {
-        if (imageData.componentSize && imageData.componentSize !== 8) {
-          imageData = await convertTo8Bit(imageData);
+        var pixelObj = null;
+        try {
+          pixelObj = await imaging.getPixels({
+            documentID: doc.id,
+            sourceBounds: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+            targetSize: { width: cw, height: ch },
+            componentSize: 8,
+            colorSpace: 'RGB',
+            applyAlpha: false
+          });
+        } catch (e8) {
+          // 16/32 位文档下指定 componentSize:8 可能不被支持，去掉让它按原深度返回再自行降位
+          pixelObj = await imaging.getPixels({
+            documentID: doc.id,
+            sourceBounds: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+            targetSize: { width: cw, height: ch },
+            colorSpace: 'RGB',
+            applyAlpha: false
+          });
         }
-      } catch (eConv) {
-        // 转不动就按原样试编码，失败会在下面暴露出来
-      }
 
-      var b64 = await imaging.encodeImageData({ imageData: imageData, base64: true });
+        var imageData = pixelObj.imageData || pixelObj;
 
-      try {
-        if (imageData && typeof imageData.dispose === 'function') imageData.dispose();
-      } catch (eDispose) {
-        // 交给 GC
-      }
+        // 如果是 16/32 位返回，先转成 8 位再交给编码器
+        try {
+          if (imageData.componentSize && imageData.componentSize !== 8) {
+            imageData = await convertTo8Bit(imageData);
+          }
+        } catch (eConv) {
+          // 转不动就按原样试编码，失败会在下面暴露出来
+        }
 
-      out = {
-        docId: doc.id,
-        docName: doc.name,
-        rect: rect,
-        captureWidth: cw,
-        captureHeight: ch,
-        jpegBase64: b64
-      };
-    },
-    { commandName: '读取选区内容' }
-  );
+        var b64 = await imaging.encodeImageData({ imageData: imageData, base64: true });
+
+        try {
+          if (imageData && typeof imageData.dispose === 'function') imageData.dispose();
+        } catch (eDispose) {
+          // 交给 GC
+        }
+
+        out = {
+          docId: doc.id,
+          docName: doc.name,
+          rect: rect,
+          captureWidth: cw,
+          captureHeight: ch,
+          jpegBase64: b64
+        };
+      },
+      { commandName: '读取选区内容' }
+    );
+  } catch (e) {
+    // executeAsModal 会把里面抛的错换成一个没有 message 的对象，
+    // 不翻译的话日志上屏就只有「undefined」。
+    throw new Error(U.describeError(e) || 'Photoshop 拒绝了这次读取，但没给出原因');
+  }
+  if (!out) throw new Error('读选区没有返回内容，请重新拉一个选区再试');
   return out;
 }
 
@@ -329,6 +363,9 @@ async function pasteToSelection(opts) {
       },
       { commandName: '贴回生成结果' }
     );
+  } catch (e) {
+    // 同 captureSelection：executeAsModal 会把异常换壳，先翻成人话再往上抛
+    throw new Error(U.describeError(e) || 'Photoshop 拒绝了这次贴回，但没给出原因');
   } finally {
     try {
       await tempFile.delete();
@@ -337,6 +374,7 @@ async function pasteToSelection(opts) {
     }
   }
 
+  if (!layerId) throw new Error('贴回步骤走完了，但没有拿到新图层');
   return layerId;
 }
 

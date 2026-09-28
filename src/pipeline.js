@@ -32,7 +32,14 @@ async function runBatch(deps, prompts) {
 
   log('正在读取选区…', 'info');
   var maxEdge = parseInt(cfg.sizeTier, 10) || 2048;
-  var shot = await ps.captureSelection(maxEdge);
+  var shot;
+  try {
+    shot = await ps.captureSelection(maxEdge);
+  } catch (eSel) {
+    // Photoshop 抛出来的东西经常不带 message，直接上屏就是一个 undefined。
+    // 在这里统一翻成人话，保证「这一批没能启动：xxx」永远是能读的句子。
+    throw new Error(U.describeError(eSel) || '读选区这一步被 Photoshop 挡下了，但没给出原因');
+  }
   log(
     '选区 ' + shot.rect.width + '×' + shot.rect.height + ' @ (' + shot.rect.left + ',' + shot.rect.top + ')' +
       ' → 发给模型 ' + shot.captureWidth + '×' + shot.captureHeight,
@@ -108,8 +115,9 @@ async function runOne(deps, task, shot) {
     if (task.state === 'cancelled') {
       log('已中断：' + shorten(task.prompt), 'warn');
     } else {
-      deps.tasks.update(task.id, { state: 'failed', message: e.message, finishedAt: Date.now() });
-      log('失败：' + shorten(task.prompt) + ' — ' + e.message, 'err');
+      var why = U.describeError(e) || '接口没返回原因';
+      deps.tasks.update(task.id, { state: 'failed', message: why, finishedAt: Date.now() });
+      log('失败：' + shorten(task.prompt) + ' — ' + why, 'err');
     }
     throw e;
   }
@@ -128,8 +136,9 @@ async function runOne(deps, task, shot) {
       });
     });
   } catch (e2) {
-    deps.tasks.update(task.id, { state: 'failed', message: '贴回失败：' + e2.message, finishedAt: Date.now() });
-    log('贴回失败：' + e2.message, 'err');
+    var why2 = U.describeError(e2) || 'Photoshop 拒绝了这次贴回，但没给出原因';
+    deps.tasks.update(task.id, { state: 'failed', message: '贴回失败：' + why2, finishedAt: Date.now() });
+    log('贴回失败：' + why2, 'err');
     throw e2;
   }
 

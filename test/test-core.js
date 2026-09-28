@@ -194,5 +194,20 @@ console.log('\n[9] 请求变体与降级重试的判断');
   check('对话式不带尺寸参数', JSON.stringify(api.buildSize('chat', 800, 600, '2048')) === '{}');
 }
 
+console.log('\n[10] 错误翻译（executeAsModal 会把报错换成没有 message 的对象）');
+{
+  const d = U.describeError;
+  check('标准 Error 取 message', d(new Error('拉选区失败')) === '拉选区失败', d(new Error('拉选区失败')));
+  check('字符串原样返回', d('连不上接口') === '连不上接口', d('连不上接口'));
+  check('嵌套 error.message', d({ error: { message: 'no such document' } }) === 'no such document', d({ error: { message: 'no such document' } }));
+  check('只有 name 时用 name', d({ name: 'PhotoshopError' }) === 'PhotoshopError', d({ name: 'PhotoshopError' }));
+  check('带错误码时附在句尾', d({ message: '执行失败', number: 8800 }) === '执行失败（代码 8800）', d({ message: '执行失败', number: 8800 }));
+  // 关键回归：这正是日志里出现 "undefined" 的那两种输入
+  check('空对象不返回 undefined 字样', d({}) === '', JSON.stringify(d({})));
+  check('undefined 返回空串', d(undefined) === '', String(d(undefined)));
+  check('null 返回空串', d(null) === '', String(d(null)));
+  check('数字直接转字符串', d(42) === '42', d(42));
+}
+
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败\n');
 process.exit(fail === 0 ? 0 : 1);

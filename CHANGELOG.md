@@ -51,6 +51,16 @@
 
 ### 修复
 
+- **真机上点生成，日志里只有一句「这一批没能启动：undefined」**：真实原因被吞掉了。
+  `core.executeAsModal` 抛出来的东西不一定是 `Error`——Photoshop 会把回调里抛的异常换成一个
+  没有 `message` 的对象，于是 `e.message` 取到 `undefined`，界面就只显示一个 `undefined`，
+  查不出到底是没选区、位数不对，还是取像素失败。
+  现在新增 `describeError()`（`src/util.js`），按 `message → error.message → name → JSON → toString`
+  的顺序逐个尝试，并把 UXP 常见的数字错误码附在句尾；读选区、生成、贴回三条路径的报错全部走它，
+  全都取不到时也给一句人话兜底。同时读选区的三级降级不再静默 catch：
+  DOM 选区 / batchPlay 选区属性 / 选区通道 bounds 三路各自失败的原因会一并写进最终报错，
+  一眼能看出是哪一路、为什么没读到。`test/test-core.js` 补了 9 项针对这套翻译的断言（含
+  「空对象与 undefined 不许再上屏成 `undefined`」这条回归）。
 - **点「拉取模型列表」看起来没反应**：设置页打开时主界面是收起的，而所有反馈只写进主界面的
   「运行日志」——于是拉取失败（地址不通、Key 不对）时，用户什么提示都看不到，
   界面上只闪一下按钮文字，体感就是「点了没用」。

@@ -99,6 +99,49 @@ function clamp(v, min, max) {
   return v < min ? min : v > max ? max : v;
 }
 
+/**
+ * 把任意东西翻成一句能上屏的话。
+ *
+ * 为什么需要它：Photoshop / UXP 抛出来的东西不一定是 Error。
+ * executeAsModal 有时候会把里面抛的错换成没有 message 的对象（日志里就只剩一个 undefined），
+ * 所以这里按 message → error.message → name → JSON → toString 的顺序挨个试，
+ * 顺便把 UXP 常见的数字错误码一起附上。
+ */
+function describeError(e) {
+  if (e === undefined || e === null) return '';
+  if (typeof e === 'string') return e.trim();
+  if (typeof e === 'number' || typeof e === 'boolean') return String(e);
+
+  var inner = e.error && typeof e.error === 'object' ? e.error : null;
+  var out = '';
+
+  if (e.message !== undefined && e.message !== null) out = String(e.message).trim();
+  if (!out && inner && inner.message) out = String(inner.message).trim();
+  if (!out && e.name) out = String(e.name);
+  if (!out) {
+    try {
+      var j = JSON.stringify(e);
+      if (j && j !== '{}') out = j;
+    } catch (x1) {
+      // 环形结构之类，继续往下试
+    }
+  }
+  if (!out) {
+    try {
+      var s = String(e);
+      if (s && s !== '[object Object]') out = s;
+    } catch (x2) {
+      // 彻底说不出来，返回空串让调用方兜底
+    }
+  }
+
+  var num = e.number !== undefined && e.number !== null ? e.number : inner ? inner.number : undefined;
+  if (num !== undefined && num !== null && Number(num) !== 0) {
+    out = out ? out + '（代码 ' + num + '）' : '代码 ' + num;
+  }
+  return String(out).trim();
+}
+
 module.exports = {
   sleep: sleep,
   uid: uid,
@@ -106,5 +149,6 @@ module.exports = {
   base64ToBytes: base64ToBytes,
   sniffImageFormat: sniffImageFormat,
   roundTo: roundTo,
-  clamp: clamp
+  clamp: clamp,
+  describeError: describeError
 };
