@@ -18,6 +18,8 @@ var pool = queueLib.createPool(cfg.concurrency);
 var psLock = queueLib.createPSLock();
 var running = false;
 var modelsAll = [];
+/* 上一次存过的 Key。用来避免每次失焦都重复写盘、重复刷日志。 */
+var lastSavedKey = '';
 
 /* ------------------------------------------------------------------ */
 /*  日志                                                              */
@@ -239,11 +241,20 @@ function updateApiState() {
 async function onSaveConfig() {
   readForm();
   var stored = store.saveConfig(cfg);
-  var where = await store.saveApiKey($('apiKey').value);
+  // Key 末尾多一个空格就会认证失败，统一去掉首尾空白再存
+  var keyToSave = $('apiKey').value.trim();
+  $('apiKey').value = keyToSave;
+  var where = await store.saveApiKey(keyToSave);
+  lastSavedKey = keyToSave;
   updateApiState();
   if (!stored) {
     setSettingsState('配置写入本地失败', 'err');
     log('配置写入本地失败', 'err');
+    return;
+  }
+  if (where === '存不下来') {
+    setSettingsState('地址和模型已保存，但 Key 没存下来——关掉面板就要重填。', 'err');
+    log('Key 没存下来：本地存储和加密存储都用不了', 'err');
     return;
   }
   setSettingsState('已保存（Key 存储位置：' + where + '）。回主界面拉取并选模型。', 'ok');
@@ -404,7 +415,12 @@ async function onGenerate() {
     return;
   }
   store.saveConfig(cfg);
-  await store.saveApiKey($('apiKey').value);
+  // 只在填了东西的时候才存，避免"没读回来 → 空值覆盖"把存好的 Key 抹掉
+  var keyNow = $('apiKey').value.trim();
+  if (keyNow) {
+    lastSavedKey = keyNow;
+    await store.saveApiKey(keyNow);
+  }
 
   var prompts = $('prompt').value.split('\n');
   running = true;
@@ -465,8 +481,19 @@ function closeSettings() {
 
 async function boot() {
   fillForm();
-  var key = await store.loadApiKey();
-  if (key) $('apiKey').value = key;
+  var keyInfo = await store.loadApiKeyDetailed();
+  if (keyInfo.key) {
+    $('apiKey').value = keyInfo.key;
+    lastSavedKey = keyInfo.key;
+    log(
+      '已读取上次保存的 API Key（来自' +
+        (keyInfo.from === 'secure' ? '加密存储' : '本地存储') +
+        '，共 ' + keyInfo.key.length + ' 个字符）',
+      'ok'
+    );
+  } else {
+    log('本地还没存过 API Key。填一次就会自动保存，之后不用再填。', 'warn');
+  }
 
   $('btnSaveCfg').addEventListener('click', onSaveConfig);
   $('btnPullModels').addEventListener('click', onPullModels);
@@ -510,6 +537,23 @@ async function boot() {
   };
   $('model').addEventListener('change', commitModel);
   $('model').addEventListener('blur', commitModel);
+
+  // Key 也自动保存：填完离开输入框就落盘，不用去点「保存配置」。
+  // 之前只在点保存或点生成时才写，人填完直接关面板，Key 就没了。
+  var commitKey = async function () {
+    var v = $('apiKey').value.trim();
+    if (v === lastSavedKey) return;
+    var where = await store.saveApiKey(v);
+    lastSavedKey = v;
+    if (where === '存不下来') {
+      setSettingsState('Key 没存下来：本地存储和加密存储都用不了。', 'err');
+      log('Key 没存下来：本地存储和加密存储都用不了', 'err');
+      return;
+    }
+    log('API Key 已自动保存（' + where + '）', 'ok');
+  };
+  $('apiKey').addEventListener('change', commitKey);
+  $('apiKey').addEventListener('blur', commitKey);
 
   showModelPick(false);
   renderTasks(tasks.list());
