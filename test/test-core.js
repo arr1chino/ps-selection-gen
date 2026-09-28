@@ -350,6 +350,37 @@ console.log('\n[12] 请求真的带上了 API Key（401 Invalid token 的回归�
   } finally {
     global.fetch = realFetch;
   }
+
+  console.log('\n[13] 图被当成正文发回来（真机遇到的那种返回）');
+  {
+    // 真机上 gpt-image-2 走 Gemini 协议时，返回的不是图片字段，
+    // 而是 parts[].text 里一段 "![image](data:image/png;base64,....)"。
+    const bw = 'iVBORw0KGgo=' + 'A'.repeat(60);
+    const markdown = '![image](data:image/png;base64,' + bw + ')';
+
+    check('从一段正文里抠出 base64', api.scrapeImageFromText(markdown) === bw,
+      String(api.scrapeImageFromText(markdown)).slice(0, 24));
+    check('正文里没有图时返回 null', api.scrapeImageFromText('这是一段纯文字回复，没有图') === null);
+    check('只是提到 data:image 但没有真正内容时不算图',
+      api.scrapeImageFromText('我用了 data:image/png 这种格式') === null);
+    check('正文里给的是外链时返回待下载 URL',
+      (api.scrapeImageFromText('图片在此 https://cdn.example.com/out.png 请查收') || {}).url === 'https://cdn.example.com/out.png');
+
+    // 端到端：真机那次返回的字段形状（只有 candidates + usageMetadata）
+    const gemText = api.extractImageBase64({
+      candidates: [{ content: { role: 'model', parts: [{ text: markdown }] }, finishReason: 'STOP', index: 0 }],
+      usageMetadata: { totalTokenCount: 2066 }
+    });
+    check('Gemini 返回里正文夹带的图能被认出来', gemText === bw, String(gemText).slice(0, 24));
+    check('外层不是 ![](...) 也一样认',
+      api.extractImageBase64({ candidates: [{ content: { parts: [{ text: '(data:image/jpeg;base64,' + bw + ')' }] } }] }) === bw);
+    check('折了行的 base64 能接起来',
+      api.scrapeImageFromText('data:image/png;base64,' + bw.slice(0, 20) + '\n' + bw.slice(20)) === bw);
+    check('真正的图片字段依旧优先',
+      api.extractImageBase64({
+        candidates: [{ content: { parts: [{ inlineData: { data: 'REAL' } }, { text: markdown }] } }]
+      }) === 'REAL');
+  }
 })()
   .catch(function (e) {
     fail++;

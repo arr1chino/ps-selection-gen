@@ -275,6 +275,45 @@ function asImageOrUrl(s) {
   return s;
 }
 
+/**
+ * 从一段正文里抠出图片。
+ *
+ * 有些中转站不按图片字段返回，而是**把图当正文发回来**，写成
+ *   ![image](data:image/png;base64,....)
+ * Gemini 路线上它出现在 candidates[].content.parts[].text 里，
+ * 对话式路线上出现在 message.content 里。只认 inlineData 就会
+ * "图明明出了，插件却说没找到"。
+ *
+ * 只认真正的 data URL（必须带 `;base64,`），这样正文里顺口提一句
+ * "data:image/png" 不会被误当成图。
+ */
+function scrapeImageFromText(text) {
+  if (typeof text !== 'string' || !text) return null;
+
+  var m = /data:image\/(png|jpe?g|webp|avif);base64,/i.exec(text);
+  if (m) {
+    var from = m.index + m[0].length;
+    var chars = '';
+    for (var i = from; i < text.length; i++) {
+      var ch = text.charAt(i);
+      // 有的站会把 base64 折行，换行当作"没有"、接着往下收
+      if (ch === '\n' || ch === '\r' || ch === '\t') continue;
+      var isB64 =
+        (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+        (ch >= '0' && ch <= '9') || ch === '+' || ch === '/' || ch === '=';
+      if (!isB64) break; // 碰到 ) 、引号、空格这类分隔符就收工
+      chars += ch;
+    }
+    // 太短的当作没找到，避免把正文里的半句话当成图
+    if (chars.length >= 8) return chars;
+  }
+
+  // 正文里给外链的也有，交给调用方去下载
+  var u = text.match(/https?:\/\/[^\s"'<>()]+\.(?:png|jpe?g|webp|avif)/i);
+  if (u) return { url: u[0] };
+  return null;
+}
+
 /** 从各种返回结构里挖出图片 base64（或一个待下载的 URL） */
 function extractImageBase64(data) {
   if (!data) return null;
@@ -308,21 +347,23 @@ function extractImageBase64(data) {
       }
     }
     // 有的站干脆把图片塞在正文里，形如 ![](data:image/png;base64,...)
-    if (typeof msg.content === 'string' && msg.content.indexOf('data:image/') !== -1) {
-      var frag = msg.content.slice(msg.content.indexOf('data:image/'));
-      var stop = frag.indexOf(')');
-      if (stop !== -1) frag = frag.slice(0, stop);
-      return stripDataUrl(frag.trim());
-    }
+    var fromChatText = scrapeImageFromText(msg.content);
+    if (fromChatText) return fromChatText;
   }
 
   // Gemini 风格
-  var cand = data.candidates && data.candidates[0];
-  if (cand && cand.content && Array.isArray(cand.content.parts)) {
+  var cands = Array.isArray(data.candidates) ? data.candidates : [];
+  for (var ci = 0; ci < cands.length; ci++) {
+    var cand = cands[ci];
+    if (!cand || !cand.content || !Array.isArray(cand.content.parts)) continue;
     for (var i = 0; i < cand.content.parts.length; i++) {
       var p = cand.content.parts[i];
-      if (p && p.inlineData && p.inlineData.data) return stripDataUrl(p.inlineData.data);
-      if (p && p.inline_data && p.inline_data.data) return stripDataUrl(p.inline_data.data);
+      if (!p) continue;
+      if (p.inlineData && p.inlineData.data) return stripDataUrl(p.inlineData.data);
+      if (p.inline_data && p.inline_data.data) return stripDataUrl(p.inline_data.data);
+      // 图被当成正文发回来：parts[].text 里就是一段 ![](data:image/png;base64,...)
+      var fromPart = scrapeImageFromText(p.text);
+      if (fromPart) return fromPart;
     }
   }
   // 有些中转站会直接给 base64 或图片 URL
@@ -523,5 +564,6 @@ module.exports = {
   stripDataUrl: stripDataUrl,
   isUnknownFieldError: isUnknownFieldError,
   buildAttempts: buildAttempts,
-  authHeaders: authHeaders
+  authHeaders: authHeaders,
+  scrapeImageFromText: scrapeImageFromText
 };
