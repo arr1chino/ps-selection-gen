@@ -187,15 +187,34 @@
     }
     .model-item.empty { color: #767c85; cursor: default; }
     .model-item.active { background: #3d6ff5; color: #fff; }
-    .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
+    /* 自绘下拉框：收起时就一条，点一下展开下面的列表 */
+    .pick {
+      display: flex;
+      align-items: center;
+      height: 42px;
+      padding: 0 10px;
+      background: #1a1c1f;
+      border: 1px solid #3a3e44;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .pick-v {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 20px;
+    }
+    .pick-v.empty { color: #767c85; }
+    .pick-caret { flex: 0 0 auto; margin-left: 8px; color: #9aa0a8; line-height: 20px; }
+    #modelPickWrap { margin-top: 6px; }
     /* 主界面上的模型列表：比设置页那次放宽的略紧一档，但行距和内边距仍给够，
        免得单选一行的模型名都点不准、字被上沿裁掉。 */
     #body .model-list { max-height: 176px; padding: 4px; }
     #body .model-item { padding: 7px 8px; line-height: 20px; margin-bottom: 2px; }
     #body .model-item:last-child { margin-bottom: 0; }
-    #body .model-sep { line-height: 20px; padding: 6px 8px 3px; }
     #body .sub-label { padding-top: 4px; line-height: 20px; }
-    #modelListToggle { cursor: pointer; }
     /* padding-top 不是装饰：UXP 里块级文字的首行会被上沿裁掉一两个像素，
        留一点顶部内边距，字才完整。 */
     .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 6px; line-height: 20px; }
@@ -281,18 +300,19 @@
 
       <div class="section">
         <div class="section-title"><span>① 模型</span></div>
-        <div class="row">
-          <div class="label">模型</div>
-          <div class="grow"><input type="text" id="model" placeholder="点「拉取」选一个，或手动填写" /></div>
+        <!-- 自绘下拉：Windows 上原生 <select> 的弹出列表由系统画，字体配色都不受控。
+             收起时只占一行，点一下才展开，免得长列表把下面的东西顶走。 -->
+        <div class="pick" id="modelPick">
+          <span class="pick-v empty" id="modelValue">未选择 —— 先去「设置」拉取模型列表</span>
+          <span class="pick-caret">▾</span>
         </div>
-        <div class="btn-row">
-          <button id="btnPullModels">拉取模型列表</button>
-        </div>
-        <div class="hint" id="pullState">点「拉取模型列表」，从接口读出可用模型。</div>
         <div id="modelPickWrap" class="hidden">
-          <div class="sub-label" id="modelListToggle">可选模型（点这里收起）</div>
           <div id="modelList" class="model-list">
             <div class="model-item empty">（未拉取）</div>
+          </div>
+          <div class="row" style="margin-top:6px;">
+            <div class="label">手打</div>
+            <div class="grow"><input type="text" id="model" placeholder="列表里没有就填这里，回车生效" /></div>
           </div>
         </div>
       </div>
@@ -368,15 +388,17 @@
           </div>
           <div class="hint" id="protocolHint"></div>
           <div class="btn-row">
+            <button id="btnPullModels">拉取模型列表</button>
             <button class="primary" id="btnSaveCfg">保存配置</button>
           </div>
-          <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。模型在主界面最上面选。</div>
+          <div class="hint" id="pullState">拉取时会自动筛掉纯文字模型，只留下能生图的，结果放到主界面最上面那个下拉框里。</div>
+          <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。</div>
         </div>
 
         <div class="section">
           <div class="section-title"><span>当前状态</span></div>
           <div class="hint" id="settingsState">未配置 API</div>
-          <div class="hint">用法：在这里填接口地址和 Key → 保存 → 回主界面拉取并选模型 → 在 PS 里框选 → 写提示词 → 点「从选区生成」。</div>
+          <div class="hint">用法：填接口地址和 Key → 保存 → 点「拉取模型列表」→ 回主界面在最上面的下拉框里选模型 → 在 PS 里框选 → 写提示词 → 点「从选区生成」。</div>
         </div>
 
       </div>

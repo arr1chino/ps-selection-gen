@@ -18,12 +18,43 @@
 var U = require('./util.js');
 
 // 用来从模型列表里挑出"看起来能生图"的那些
-var IMAGE_HINTS = [
-  'image', 'img', 'dall', 'flux', 'sd', 'stable', 'diffusion', 'seedream',
-  'banana', 'imagen', 'kolors', 'qwen-image', 'wan', 'midjourney', 'mj',
-  'nano', 'gpt-4o', 'doubao', 'hunyuan', 'grok-image', 'recraft', 'ideogram',
-  'luma', 'runway', 'firefly', 'kling', 'jimeng', 'draw'
+/*
+ * 判断"这个模型能不能生图"。
+ *
+ * 用的是**只认生图特征**的思路：名字里出现生图线索才留下，其余一律过滤掉。
+ * 也就是说没匹配上的（不认识的模型）当作不能用——宁可漏，不滥。
+ * 漏掉的那些由主界面「手打模型名」兜底。
+ *
+ * 之前的老写法是"优先展示像生图的、一个都没有就原样返回全部"，
+ * 结果把 gpt-4o 这类纯文字模型也当成生图模型塞进列表里。
+ */
+
+/* 这些词够独特，出现在名字里就算数 */
+var IMAGE_WORDS = [
+  'image', 'img', 'dall', 'flux', 'diffusion', 'sdxl', 'sd3', 'sd15',
+  'sd-turbo', 'stable-diffusion', 'seedream', 'seededit', 'banana', 'nano',
+  'imagen', 'kolors', 'cogview', 'janus', 'lumina', 'hidream', 'recraft',
+  'ideogram', 'midjourney', 'doubao', 'hunyuan', 'playground', 'kandinsky',
+  'krea', 'photon', 'wanx', 'draw', 'paint'
 ];
+
+/* 这几个太短或者太通用（sd、mj、wan），要求前后是分隔符或结尾才算数，
+   免得匹配到无关的词里去 */
+var IMAGE_WORDS_BOUNDED = ['sd', 'mj', 'wan'];
+
+function guessIsImageModel(id) {
+  var low = String(id || '').toLowerCase();
+  if (!low) return false;
+  for (var i = 0; i < IMAGE_WORDS.length; i++) {
+    if (low.indexOf(IMAGE_WORDS[i]) !== -1) return true;
+  }
+  for (var j = 0; j < IMAGE_WORDS_BOUNDED.length; j++) {
+    var w = IMAGE_WORDS_BOUNDED[j];
+    var re = new RegExp('(^|[-_/])' + w + '([-_/0-9.]|$)');
+    if (re.test(low)) return true;
+  }
+  return false;
+}
 
 function normalizeBase(url) {
   var b = String(url || '').trim();
@@ -117,14 +148,6 @@ function buildMultipart(fields, file) {
 /*  模型列表                                                           */
 /* ------------------------------------------------------------------ */
 
-function guessIsImageModel(id) {
-  var low = String(id || '').toLowerCase();
-  for (var i = 0; i < IMAGE_HINTS.length; i++) {
-    if (low.indexOf(IMAGE_HINTS[i]) !== -1) return true;
-  }
-  return false;
-}
-
 async function listModels(cfg, signal) {
   var base = normalizeBase(cfg.baseUrl);
   var attempts = [
@@ -176,10 +199,13 @@ function extractModelIds(data) {
   return ids;
 }
 
-/** 优先返回像生图模型的那些；一个都没有就原样返回，交给人自己挑 */
-function prioritizeImageModels(ids) {
-  var hit = ids.filter(guessIsImageModel);
-  return hit.length > 0 ? hit : ids.slice();
+/**
+ * 只留下像生图模型的那些，纯文字模型（gpt-4o、deepseek-chat、embedding……）全部丢掉。
+ * 一个都没匹配上就返回空数组——界面据此提示"去手打模型名"。
+ */
+function filterImageModels(ids) {
+  if (!Array.isArray(ids)) return [];
+  return ids.filter(guessIsImageModel);
 }
 
 /* ------------------------------------------------------------------ */
@@ -487,11 +513,12 @@ async function generate(cfg, req) {
 
 module.exports = {
   listModels: listModels,
-  prioritizeImageModels: prioritizeImageModels,
+  filterImageModels: filterImageModels,
   generate: generate,
   buildSize: buildSize,
   normalizeBase: normalizeBase,
   // 下面几个是为了能脱离 Photoshop 单独测（见 test/test-core.js）
+  guessIsImageModel: guessIsImageModel,
   extractImageBase64: extractImageBase64,
   stripDataUrl: stripDataUrl,
   isUnknownFieldError: isUnknownFieldError,

@@ -107,16 +107,24 @@ console.log('\n[5] multipart 拼装');
   check('文件字节数可拼接', fileBytes.length === 5);
 }
 
-console.log('\n[6] 模型名过滤（拉取列表后优先展示生图模型）');
+console.log('\n[6] 模型名过滤（拉取列表后只留生图模型）');
 {
   const ids = ['gpt-4o-mini', 'gpt-image-1', 'flux-pro', 'deepseek-chat', 'nano-banana', 'text-embedding-3'];
-  const picked = api.prioritizeImageModels(ids);
+  const picked = api.filterImageModels(ids);
   check('挑出 gpt-image-1', picked.includes('gpt-image-1'));
   check('挑出 flux-pro', picked.includes('flux-pro'));
   check('挑出 nano-banana', picked.includes('nano-banana'));
   check('排除纯文本模型 deepseek-chat', !picked.includes('deepseek-chat'));
-  const none = api.prioritizeImageModels(['a', 'b']);
-  check('一个都不像时原样返回', none.length === 2);
+  check('排除纯文本模型 gpt-4o-mini', !picked.includes('gpt-4o-mini'));
+  check('排除 embedding 模型', !picked.includes('text-embedding-3'));
+  check('只留认出来的 3 个', picked.length === 3);
+  const none = api.filterImageModels(['a', 'b']);
+  check('一个都不像时返回空数组', none.length === 0);
+  check('sd-xl 认成生图模型', api.guessIsImageModel('sd-xl') === true);
+  check('mj 单独一段也算生图模型', api.guessIsImageModel('midjourney-v6') === true);
+  check('gpt-4o 不算生图模型', api.guessIsImageModel('gpt-4o') === false);
+  check('gpt-4o-mini 不算生图模型', api.guessIsImageModel('gpt-4o-mini') === false);
+  check('无关词里的 sd 不算数（比如 gsd-agent）', api.guessIsImageModel('gsd-agent') === false);
 }
 
 console.log('\n[7] 接口地址清洗');

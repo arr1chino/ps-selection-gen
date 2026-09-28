@@ -40,9 +40,9 @@ function log(message, type) {
   box.scrollTop = box.scrollHeight;
 }
 
-/* 主界面「模型」块里的一行即时反馈：拉取的结果写在这里。
-   日志框在下面，滚动之后看不见，点按钮得就近给反馈。 */
-function setState(text, kind) {
+/* 设置页「拉取模型列表」按钮下面的一行即时反馈。
+   设置页打开时主界面是收起的，日志在另一视图里，点按钮必须就近给结果。 */
+function setPullState(text, kind) {
   var el = $('pullState');
   if (!el) return;
   el.textContent = text;
@@ -261,43 +261,41 @@ async function onSaveConfig() {
   log('配置已保存（Key 存储位置：' + where + '）', 'ok');
 }
 
-/* 拉取有结果之后才出现「可选模型」这一块。没拉之前它整块不占地方。 */
-function showModelPick(on) {
+/* 下拉框展开 / 收起。收起时整块不占地方，免得长列表把提示词和按钮顶走。 */
+function openModelPick(on) {
   var wrap = $('modelPickWrap');
   if (wrap) wrap.className = on ? '' : 'hidden';
-  setModelListOpen(on);
 }
 
-/* 列表自身的展开 / 收起。收起后只剩一行标题，
-   免得长长的模型列表把下面的提示词和「从选区生成」顶到看不见的地方。 */
-function setModelListOpen(on) {
-  var list = $('modelList');
-  if (list) list.className = on ? 'model-list' : 'model-list hidden';
-  var t = $('modelListToggle');
-  if (t) t.textContent = on ? '可选模型（点这里收起）' : '可选模型（点这里展开）';
-}
-
-function modelListOpen() {
-  var list = $('modelList');
-  return !!(list && list.className.indexOf('hidden') === -1);
+function modelPickOpen() {
+  var wrap = $('modelPickWrap');
+  return !!(wrap && wrap.className.indexOf('hidden') === -1);
 }
 
 async function onPullModels() {
   readForm();
   if (!cfg.baseUrl) {
-    setState('先到「设置」里填「接口地址」，再回来拉取。', 'err');
-    log('先填接口地址（点右上角「设置」）', 'err');
+    setPullState('上面「接口地址」还没填，填好再拉取。', 'err');
+    log('还没填接口地址：设置页「接口地址」那一栏', 'err');
     return;
   }
-  if (!$('apiKey').value) {
-    setState('还没填 API Key。点右上角「设置」填好并保存，再回来拉取。', 'err');
-    log('先填 API Key', 'err');
+  var keyNow = $('apiKey').value.trim();
+  if (!keyNow) {
+    setPullState('上面「API Key」还没填，填好再拉取。', 'err');
+    log('还没填 API Key：设置页「API Key」那一栏', 'err');
     return;
   }
   var btn = $('btnPullModels');
   btn.disabled = true;
   btn.textContent = '拉取中…';
-  setState('拉取中…（最多等 15 秒）');
+  setPullState('拉取中…（最多等 15 秒）');
+
+  // 拉之前先把 Key 落盘：不然拉完直接关面板，刚填的 Key 又没了。
+  if (keyNow !== lastSavedKey) {
+    var where = await store.saveApiKey(keyNow);
+    lastSavedKey = keyNow;
+    log('API Key 已保存（' + where + '）', 'ok');
+  }
 
   // 拉取也要有超时：地址不通时不给超时，按钮会永远停在「拉取中…」。
   var controller = new AbortController();
@@ -306,18 +304,32 @@ async function onPullModels() {
   }, 15000);
 
   try {
-    var res = await api.listModels({ baseUrl: cfg.baseUrl, apiKey: $('apiKey').value }, controller.signal);
+    var res = await api.listModels({ baseUrl: cfg.baseUrl, apiKey: keyNow }, controller.signal);
     modelsAll = res.ids;
-    var likely = api.prioritizeImageModels(modelsAll);
-    renderModelList(likely, modelsAll);
-    showModelPick(modelsAll.length > 0);
-    setState(
-      modelsAll.length
-        ? '拉取成功：共 ' + modelsAll.length + ' 个模型，点下面的列表选一个。'
-        : '拉取成功，但接口没返回任何模型。可以直接在「模型」框里手打模型名。',
-      modelsAll.length ? 'ok' : 'err'
-    );
-    log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型，点下面的列表选一个', 'ok');
+    // 只留生图模型，纯文字模型（gpt-4o / deepseek-chat / embedding……）全丢掉
+    var picked = api.filterImageModels(modelsAll);
+    cfg.imageModels = picked;
+    store.saveConfig(cfg);
+    renderModelList();
+    updateApiState();
+    if (picked.length) {
+      setPullState(
+        '拉取成功：' + modelsAll.length + ' 个模型里筛出 ' + picked.length + ' 个生图模型。回主界面，在最上面那个下拉框里选。',
+        'ok'
+      );
+      log(
+        '拉取成功（' + res.source + '）：共 ' + modelsAll.length + ' 个模型，筛出 ' + picked.length +
+          ' 个生图模型，回主界面下拉框选',
+        'ok'
+      );
+    } else {
+      setPullState(
+        '接口能通，但 ' + modelsAll.length +
+          ' 个模型里没认出哪个能生图。回主界面点开下拉框，用下面的「手打」直接填模型名。',
+        'err'
+      );
+      log('拉取成功（' + res.source + '），但没筛出能生图的模型，请在主界面手打模型名', 'warn');
+    }
   } catch (e) {
     var msg = U.describeError(e) || '拉取失败，但没拿到原因';
     if (controller.signal.aborted) {
@@ -325,7 +337,7 @@ async function onPullModels() {
     } else {
       msg = friendlyNetError(msg, cfg.baseUrl);
     }
-    setState('拉取失败：' + msg, 'err');
+    setPullState('拉取失败：' + msg, 'err');
     log('拉取失败：' + msg, 'err');
   } finally {
     clearTimeout(timer);
@@ -349,13 +361,6 @@ function friendlyNetError(msg, baseUrl) {
 
 /* ---- 模型列表（自绘列表，点一行即选中） ---------------------------- */
 
-function modelSep(text) {
-  var d = document.createElement('div');
-  d.className = 'model-sep';
-  d.textContent = text;
-  return d;
-}
-
 function modelRow(value) {
   var d = document.createElement('div');
   d.className = 'model-item';
@@ -364,27 +369,32 @@ function modelRow(value) {
   return d;
 }
 
-function renderModelList(likely, all) {
+/* 列表只画「拉取时筛出来的生图模型」，没拉过就留一句提示。 */
+function renderModelList() {
   var box = $('modelList');
   if (!box) return;
   box.innerHTML = '';
-  if (!all.length) {
+  var list = cfg.imageModels || [];
+  if (!list.length) {
     var empty = document.createElement('div');
     empty.className = 'model-item empty';
-    empty.textContent = '（没拉到模型：检查地址和 Key）';
+    empty.textContent = '（还没拉取：去「设置」里点「拉取模型列表」）';
     box.appendChild(empty);
+    syncModelLabel();
     return;
   }
-  box.appendChild(modelSep('疑似生图模型（' + likely.length + ' / 共 ' + all.length + '）'));
-  for (var i = 0; i < likely.length; i++) box.appendChild(modelRow(likely[i]));
-  if (likely.length !== all.length) {
-    box.appendChild(modelSep('全部模型'));
-    for (var j = 0; j < all.length; j++) {
-      if (likely.indexOf(all[j]) !== -1) continue;
-      box.appendChild(modelRow(all[j]));
-    }
-  }
+  for (var i = 0; i < list.length; i++) box.appendChild(modelRow(list[i]));
   markActiveModel();
+  syncModelLabel();
+}
+
+/* 收起状态下那一行显示的当前模型名 */
+function syncModelLabel() {
+  var el = $('modelValue');
+  if (!el) return;
+  var v = cfg.model || '';
+  el.textContent = v || '未选择 —— 先去「设置」拉取模型列表';
+  el.className = v ? 'pick-v' : 'pick-v empty';
 }
 
 /* 让已选中的模型在列表里高亮 */
@@ -411,7 +421,7 @@ async function onGenerate() {
     return;
   }
   if (!cfg.model) {
-    log('还没选模型：在最上面「① 模型」点「拉取模型列表」选一个，或在模型框里手打', 'err');
+    log('还没选模型：先去「设置」点「拉取模型列表」，再回主界面下拉框选一个，或点开下拉框用「手打」填', 'err');
     return;
   }
   store.saveConfig(cfg);
@@ -510,6 +520,11 @@ async function boot() {
     updateProtocolHint();
   });
 
+  // 点收起状态那一行 → 展开 / 收起下面的模型列表
+  $('modelPick').addEventListener('click', function () {
+    openModelPick(!modelPickOpen());
+  });
+
   $('modelList').addEventListener('click', function (ev) {
     var t = ev.target;
     var v = t && t.getAttribute ? t.getAttribute('data-v') : '';
@@ -518,13 +533,10 @@ async function boot() {
     cfg.model = v;
     store.saveConfig(cfg);
     markActiveModel();
+    syncModelLabel();
     updateApiState();
-    setState('已选：' + v, 'ok');
-    setModelListOpen(false);
-  });
-
-  $('modelListToggle').addEventListener('click', function () {
-    setModelListOpen(!modelListOpen());
+    log('已选模型：' + v, 'ok');
+    openModelPick(false);
   });
 
   // 手打的模型名也要落盘：不然关掉面板再打开就丢了。
@@ -533,6 +545,8 @@ async function boot() {
     if (v === cfg.model) return;
     cfg.model = v;
     store.saveConfig(cfg);
+    markActiveModel();
+    syncModelLabel();
     updateApiState();
   };
   $('model').addEventListener('change', commitModel);
@@ -555,11 +569,13 @@ async function boot() {
   $('apiKey').addEventListener('change', commitKey);
   $('apiKey').addEventListener('blur', commitKey);
 
-  showModelPick(false);
+  renderModelList();
+  openModelPick(false);
+  syncModelLabel();
   renderTasks(tasks.list());
   updateApiState();
   log('面板已就绪', 'ok');
-  log('用法：点右上角「设置」填接口地址和 Key → 回主界面拉取并选模型 → 写提示词 → 在 PS 里框选 → 从选区生成', 'info');
+  log('用法：点右上角「设置」填接口地址和 Key → 点「拉取模型列表」 → 回主界面下拉框选模型 → 写提示词 → 在 PS 里框选 → 从选区生成', 'info');
 }
 
 boot();

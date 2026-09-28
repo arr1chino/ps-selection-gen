@@ -22,6 +22,9 @@ var DEFAULTS = {
   baseUrl: '',
   protocol: 'openai',
   model: '',
+  /* 拉取到的生图模型列表。存在配置里，重启后主界面的下拉框还能直接用，
+     不用每次开面板都重新拉一遍。 */
+  imageModels: [],
   sizeTier: '2048',
   concurrency: 2,
   timeout: 180
