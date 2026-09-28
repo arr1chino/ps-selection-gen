@@ -217,5 +217,92 @@ console.log('\n[10] 错误翻译（executeAsModal 会把报错换成没有 messa
   check('数字直接转字符串', d(42) === '42', d(42));
 }
 
+console.log('\n[11] 像素整理（读选区时把数据弄成能直接交给 JPEG 编码器的样子）');
+{
+  const px = 2 * 2; // 2×2 的小图，够验算就行
+
+  // 色深归一：不同 PS 版本给三种形状
+  check('数字色深原样返回', U.parseBitsPerChannel(8) === 8, String(U.parseBitsPerChannel(8)));
+  check("字符串 'bitDepth8' → 8", U.parseBitsPerChannel('bitDepth8') === 8, String(U.parseBitsPerChannel('bitDepth8')));
+  check("字符串 'bitDepth16' → 16", U.parseBitsPerChannel('bitDepth16') === 16, String(U.parseBitsPerChannel('bitDepth16')));
+  check('枚举对象 → 32', U.parseBitsPerChannel({ _value: 'bitDepth32' }) === 32);
+  check('读不到时返回 0', U.parseBitsPerChannel(undefined) === 0);
+
+  // 已经合规的 8 位 RGB：一个字节都不该动
+  const rgb8 = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const keep = U.toRgb8(rgb8, 2, 2, 3);
+  check('8 位 RGB 不重建', keep.changed === false);
+  check('8 位 RGB 内容原样', keep.data === rgb8);
+  check('8 位 RGB 通道数不变', keep.components === 3);
+
+  // RGBA → RGB：长度从 4×像素数掉到 3×像素数，丢的是每像素第 4 字节
+  const rgba = new Uint8Array(px * 4);
+  for (let i = 0; i < px; i++) {
+    rgba[i * 4] = i + 1;
+    rgba[i * 4 + 1] = 100 + i;
+    rgba[i * 4 + 2] = 200 + i;
+    rgba[i * 4 + 3] = 255; // alpha
+  }
+  const noA = U.toRgb8(rgba, 2, 2, 4);
+  check('RGBA 被拆成 RGB 长度', noA.data.length === px * 3, String(noA.data.length));
+  check('拆 alpha 后标记 changed', noA.changed === true);
+  check('拆 alpha 后通道数是 3', noA.components === 3);
+  check('第 1 像素 R 保留', noA.data[0] === 1);
+  check('第 1 像素 G 保留', noA.data[1] === 100, String(noA.data[1]));
+  check('第 2 像素开头就跳过 alpha', noA.data[3] === 2, String(noA.data[3]));
+  check('第 3 像素 B 保留', noA.data[8] === 202, String(noA.data[8]));
+
+  // 声明的通道数是 3，但长度是 4×像素数 → 不信声明，按长度来
+  const lied = U.toRgb8(rgba, 2, 2, 3);
+  check('声明通道数与长度冲突时以长度为准', lied.components === 3 && lied.data.length === px * 3);
+
+  // Uint16Array（PS 的 0..32768 值域）
+  const u16 = new Uint16Array([0, 32768, 16384, 8192, 32768, 0, 16384, 16384, 8192, 8192, 16384, 16384]);
+  const fromU16 = U.toRgb8(u16, 2, 2, 3);
+  check('Uint16Array 转成 8 位长度', fromU16.data.length === px * 3, String(fromU16.data.length));
+  check('Uint16 最大值 32768 → 255', fromU16.data[1] === 255, String(fromU16.data[1]));
+  check('Uint16 中间值 16384 → 128', fromU16.data[2] === 128, String(fromU16.data[2]));
+
+  // 字节流其实是 16 位（长度是 8 位的两倍），大端：高位在前
+  const be16 = new Uint8Array([
+    0xff, 0x00, 0x80, 0x00, 0x40, 0x00,
+    0x20, 0x00, 0x10, 0x00, 0x08, 0x00,
+    0x04, 0x00, 0x02, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x80
+  ]);
+  const beOut = U.toRgb8(be16, 2, 2, 3);
+  check('16 位字节流降成 8 位长度', beOut.data.length === px * 3, String(beOut.data.length));
+  check('大端高位在前 → 取第一个字节', beOut.data[0] === 0xff, String(beOut.data[0]));
+  check('大端第二个像素取高位', beOut.data[3] === 0x20, String(beOut.data[3]));
+
+  // 同样的数据换成小端（低位在前），结果应该一样
+  const le16 = new Uint8Array(be16.length);
+  for (let i = 0; i < be16.length; i += 2) {
+    le16[i] = be16[i + 1];
+    le16[i + 1] = be16[i];
+  }
+  const leOut = U.toRgb8(le16, 2, 2, 3);
+  check('小端数据也能认出来', leOut.data[0] === 0xff, String(leOut.data[0]));
+  check('小端结果与大端一致', leOut.data.join(',') === beOut.data.join(','));
+
+  // Float32Array（32 位文档，0.0–1.0）
+  const f32 = new Float32Array([0, 0.5, 1, 1, 0.5, 0, 0.25, 0.25, 0.25, 0.75, 0.75, 0.75]);
+  const fromF32 = U.toRgb8(f32, 2, 2, 3);
+  check('Float32 转成 8 位长度', fromF32.data.length === px * 3, String(fromF32.data.length));
+  check('Float32 1.0 → 255', fromF32.data[2] === 255, String(fromF32.data[2]));
+  check('Float32 0.5 → 128', fromF32.data[1] === 128, String(fromF32.data[1]));
+
+  // keepAlpha：贴回图层时要保住透明通道
+  const keepA = U.toRgb8(rgba, 2, 2, 4, true);
+  check('keepAlpha 时保留 4 通道', keepA.components === 4 && keepA.data.length === px * 4, String(keepA.data.length));
+  check('keepAlpha 且已是 8 位时不重建', keepA.changed === false);
+
+  // 边界：宽度为 0、数据为空都不该炸
+  const zero = U.toRgb8(rgb8, 0, 0, 3);
+  check('尺寸为 0 时原样返回', zero.changed === false && zero.data === rgb8);
+  const nullRaw = U.toRgb8(null, 2, 2, 3);
+  check('数据为空时原样返回', nullRaw.changed === false);
+}
+
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败\n');
 process.exit(fail === 0 ? 0 : 1);

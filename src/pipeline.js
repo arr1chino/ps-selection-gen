@@ -60,6 +60,8 @@ async function runBatch(deps, prompts) {
       ' → 发给模型 ' + shot.captureWidth + '×' + shot.captureHeight,
     'ok'
   );
+  // 抓到的像素究竟几个通道、几个字节，这一行是关键排查信息，直接留痕
+  if (shot.pixelInfo) log(shot.pixelInfo, 'info');
 
   deps.pool.setMax(cfg.concurrency);
 

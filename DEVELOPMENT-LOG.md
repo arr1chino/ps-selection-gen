@@ -657,6 +657,81 @@ Key 就这么每次都要重填。
 
 ---
 
+## 真机上读选区报「Image data with alpha cannot be encoded as jpeg」（09-28）
+
+### 我提的问题
+
+在 PS 里框好选区、点生成，日志里报：
+
+```
+[21:32:54] 当前文档：DSC03087.psd（4000×6000，bitDepth8 位/通道）
+[21:32:54] 提示：bitDepth8 位/通道的文档读选区容易失败，建议先转成 8 位（图像 → 模式 → 8 位/通道）。
+[21:32:54] 这一批没能启动：Error: Image data with alpha cannot be encoded as jpeg
+```
+
+两个问题凑在一起：图明明写着 8 位，却提示"建议转成 8 位"；然后编码这步直接失败。
+我说：参照一下那份现成的工程，它是能跑通的。
+
+### 原因
+
+去读了参考工程 `host/ps-io.js` 的取像素那一段，对照出两点：
+
+1. **参考工程自己写 JPEG/PNG 编码器**，编码时按 `comp` 跨步只取 R、G、B 三个字节
+   （`rgbData[off]` / `[off+1]` / `[off+2]`）。也就是说，**alpha 是被"顺手"忽略掉的**——
+   它压根不会因为数据带 alpha 而出错。
+2. **我们这边用的是官方 `imaging.encodeImageData`**，JPEG 编码器对输入挑剔：
+   带 alpha 的四通道数据一律拒收，报的就是截图里那句。而 `getPixels({ applyAlpha: false })`
+   在部分 Photoshop 版本上**并不真的去掉 alpha**，返回的还是四通道。
+
+色深那句提示是另一个独立的 bug：不同版本 `doc.bitsPerChannel` 返回的形状不一样，
+有的是数字 `8`，有的是字符串 `'bitDepth8'`，有的是枚举对象 `{ _value: 'bitDepth16' }`。
+原代码直接拿它和 `8` 比，字符串 `'bitDepth8' !== 8` 永远成立，于是 8 位文档也弹那句提示。
+
+### 改法
+
+- `src/util.js` 新增两个函数：
+  - `parseBitsPerChannel(v)`：把上面三种形状的色深统一成数字。
+  - `toRgb8(raw, w, h, components, keepAlpha)`：把 `getPixels` 拿到的像素整理成
+    "8 位、无 alpha 的 RGB"。三件事——**拆 alpha**（丢每像素第 4 字节）、
+    **统一位深**（`Uint16Array` / `Float32Array` / 16 位字节流都降成 8 位）、
+    **不信声明的通道数**（用"字节长度 ÷ 像素数"反推，长度是 8 位两倍就按 16 位处理）。
+    16 位字节流是高位在前还是低位在前，靠采样比大小定。
+    返回 `changed`，不需要动的时候调用方就什么都不做。
+    贴回图层那一步传 `keepAlpha: true`，因为生图可能是带透明的 PNG，alpha 要留住。
+- `src/photoshop.js`：把原来的 `convertTo8Bit` 换成 `ensureEncodableImageData`——
+  它负责读像素、需要时重建一个 `PhotoshopImageData`（并释放旧的）、把像素实况记下来。
+  抓选区（送编码器）和贴回（送 `putPixels`）两条路都走它，只差一个 `keepAlpha`。
+  `getActiveDocInfo` 与 `describeDoc` 的色深都过一遍归一化，DOM 读不到时退到 `batchPlay` 问 `depth`。
+- `src/pipeline.js`：日志加一行像素实况（宽×高、通道数、字节数、有没有降位）。
+- `test/test-core.js`：新增第 [11] 组 31 项断言，覆盖色深归一、8 位不动、RGBA→RGB、
+  声明通道数与长度冲突时以长度为准、`Uint16Array`、16 位字节流大小端、`Float32Array`、
+  `keepAlpha`、尺寸为 0 或数据为空这几种边界。
+
+### 我的判断
+
+- **不照搬参考工程的自写编码器。** README 里已经写明"编码交给官方 API"是这次的设计取舍，
+  为一个兼容问题把几百行编码器搬进来，等于放弃这条取舍。真正要解决的只是
+  "输入形状不合法"，那就**在交给编码器之前把形状理顺**——十几行循环的事，风险低得多。
+- **参考工程的做法值得学的是它为什么没踩坑，不是它的代码。** 它是自写编码器"顺带"解决了
+  alpha 和位深两件事；我们既然选了官方编码器，就得**自己做这两件事**。取舍换来了省代码，
+  对价就是要多写这一段整理逻辑——这笔账我认为划算。
+- **`ensureEncodableImageData` 里读像素失败不吞异常**，只记进 `error` 字段、原样返回，
+  让上层照常报错。这里吞掉的话，下一次就又是"只有一句看不懂的错"。
+- **日志加像素实况是为了下一次。** 这次报错能定位，是因为报错信息本身够具体；
+  再出别的编码问题就不一定了，所以把"当时拿到的像素长什么样"直接留痕，比下次再猜强。
+
+### 验证
+
+- `node test/test-core.js`：104 项 0 失败（新增第 [11] 组 31 项）；
+  `node test/test-manifest.js`：14 项 0 失败。
+- `index.js` / `src/api.js` / `src/store.js` / `src/photoshop.js` / `src/pipeline.js` / `src/util.js`
+  六个文件 `node --check` 全部通过。
+- 真机验证要**完全退出 Photoshop 再打开**（PS 只在启动时读一次插件代码，只关面板不会重新加载）：
+  重跑一次生成，日志里应出现「像素 …，通道 3，字节数 …」，然后正常贴回。
+  如果还报同样的错，新加的那行像素实况就能直接说明拿到的到底是什么形状。
+
+---
+
 ## 附：本次协作的工作方式
 
 - **AI 负责**：通读参考工程并归纳架构、给出技术方案候选、实现代码、写自动化测试。
