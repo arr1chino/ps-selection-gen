@@ -56,6 +56,7 @@
     }
     #settingsPanel.open { display: flex; }
     #topbar.hidden, #body.hidden { display: none; }
+    .hidden { display: none; }
     #settingsHead {
       flex: 0 0 auto;
       display: flex;
@@ -187,6 +188,14 @@
     .model-item.empty { color: #767c85; cursor: default; }
     .model-item.active { background: #3d6ff5; color: #fff; }
     .model-sep { color: #767c85; font-size: 11px; padding: 4px 6px 2px; }
+    /* 主界面上的模型列表：比设置页那次放宽的略紧一档，但行距和内边距仍给够，
+       免得单选一行的模型名都点不准、字被上沿裁掉。 */
+    #body .model-list { max-height: 176px; padding: 4px; }
+    #body .model-item { padding: 7px 8px; line-height: 20px; margin-bottom: 2px; }
+    #body .model-item:last-child { margin-bottom: 0; }
+    #body .model-sep { line-height: 20px; padding: 6px 8px 3px; }
+    #body .sub-label { padding-top: 4px; line-height: 20px; }
+    #modelListToggle { cursor: pointer; }
     /* padding-top 不是装饰：UXP 里块级文字的首行会被上沿裁掉一两个像素，
        留一点顶部内边距，字才完整。 */
     .hint { color: #767c85; font-size: 11px; margin-top: 4px; padding-top: 6px; line-height: 20px; }
@@ -219,10 +228,6 @@
     #settingsBody .btn-row button { height: 36px; font-size: 13px; }
     #settingsBody .hint { font-size: 12px; line-height: 22px; margin-top: 8px; padding-top: 6px; }
     #settingsBody .sub-label { font-size: 12px; line-height: 22px; margin: 14px 0 6px; padding-top: 2px; }
-    #settingsBody .model-list { max-height: 190px; padding: 4px; }
-    #settingsBody .model-item { padding: 8px; font-size: 13px; line-height: 20px; margin-bottom: 2px; }
-    #settingsBody .model-item:last-child { margin-bottom: 0; }
-    #settingsBody .model-sep { font-size: 12px; line-height: 20px; padding: 8px 8px 3px; }
     #settingsBody .section-title { padding-top: 2px; }
     #log {
       font-family: Consolas, monospace;
@@ -275,7 +280,25 @@
     <div id="body">
 
       <div class="section">
-        <div class="section-title"><span>① 提示词</span></div>
+        <div class="section-title"><span>① 模型</span></div>
+        <div class="row">
+          <div class="label">模型</div>
+          <div class="grow"><input type="text" id="model" placeholder="点「拉取」选一个，或手动填写" /></div>
+        </div>
+        <div class="btn-row">
+          <button id="btnPullModels">拉取模型列表</button>
+        </div>
+        <div class="hint" id="pullState">点「拉取模型列表」，从接口读出可用模型。</div>
+        <div id="modelPickWrap" class="hidden">
+          <div class="sub-label" id="modelListToggle">可选模型（点这里收起）</div>
+          <div id="modelList" class="model-list">
+            <div class="model-item empty">（未拉取）</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>② 提示词</span></div>
         <textarea id="prompt" placeholder="每行一条提示词"></textarea>
         <div class="hint">一行 = 生成一张；写几行就批量生成几张，空行会忽略。</div>
         <div class="row" style="margin-top:6px;">
@@ -304,13 +327,13 @@
       </div>
 
       <div class="section">
-        <div class="section-title"><span>② 任务队列</span><span id="queueStat">空闲</span></div>
+        <div class="section-title"><span>③ 任务队列</span><span id="queueStat">空闲</span></div>
         <div id="taskList"></div>
         <div id="preview"></div>
       </div>
 
       <div class="section">
-        <div class="section-title"><span>③ 运行日志</span></div>
+        <div class="section-title"><span>④ 运行日志</span></div>
         <div id="log"></div>
       </div>
 
@@ -344,28 +367,16 @@
             </div>
           </div>
           <div class="hint" id="protocolHint"></div>
-          <div class="row">
-            <div class="label">模型</div>
-            <div class="grow"><input type="text" id="model" placeholder="点下方按钮拉取，或手动填写" /></div>
-          </div>
           <div class="btn-row">
-            <button id="btnPullModels">拉取模型列表</button>
-            <button id="btnSaveCfg">保存配置</button>
+            <button class="primary" id="btnSaveCfg">保存配置</button>
           </div>
-          <!-- 设置页打开时主界面的「运行日志」是看不见的，点按钮的结果必须写在这里，
-               否则拉取失败时用户什么反馈都收不到，看起来就像「点了没反应」。 -->
-          <div class="hint" id="pullState">点「拉取模型列表」，从接口读出可用模型。</div>
-          <div class="sub-label">可选模型</div>
-          <div id="modelList" class="model-list">
-            <div class="model-item empty">（未拉取，先填地址再点「拉取模型列表」）</div>
-          </div>
-          <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。</div>
+          <div class="hint">只填 base url，不要带 /v1。Key 只存在本机，不会上传。模型在主界面最上面选。</div>
         </div>
 
         <div class="section">
           <div class="section-title"><span>当前状态</span></div>
           <div class="hint" id="settingsState">未配置 API</div>
-          <div class="hint">用法：在这里配好接口 → 拉取模型 → 选模型 → 回到主界面，在 PS 里框选 → 写提示词 → 点「从选区生成」。</div>
+          <div class="hint">用法：在这里填接口地址和 Key → 保存 → 回主界面拉取并选模型 → 在 PS 里框选 → 写提示词 → 点「从选区生成」。</div>
         </div>
 
       </div>

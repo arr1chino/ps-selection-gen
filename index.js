@@ -35,12 +35,10 @@ function log(message, type) {
   line.textContent = '[' + hh + ':' + mm + ':' + ss + '] ' + message;
   box.appendChild(line);
   box.scrollTop = box.scrollHeight;
-  // 设置页打开时，主界面的日志是看不见的（两个视图互斥），
-  // 所以同一句话也要写到设置页里那行状态上，否则点按钮像「没反应」。
-  if (settingsOpen()) setState(message, type);
 }
 
-/* 设置页里的一行即时反馈：拉取/保存的结果都写在这里 */
+/* 主界面「模型」块里的一行即时反馈：拉取的结果写在这里。
+   日志框在下面，滚动之后看不见，点按钮得就近给反馈。 */
 function setState(text, kind) {
   var el = $('pullState');
   if (!el) return;
@@ -48,9 +46,13 @@ function setState(text, kind) {
   el.className = 'hint' + (kind === 'err' ? ' bad' : kind === 'ok' ? ' good' : '');
 }
 
-function settingsOpen() {
-  var p = $('settingsPanel');
-  return !!(p && String(p.className).indexOf('open') !== -1);
+/* 设置页「当前状态」那行：保存的结果写在这里。
+   设置页打开时主界面是收起的，日志看不见，反馈必须落在本页。 */
+function setSettingsState(text, kind) {
+  var el = $('settingsState');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'hint' + (kind === 'err' ? ' bad' : kind === 'ok' ? ' good' : '');
 }
 
 /* ------------------------------------------------------------------ */
@@ -204,26 +206,29 @@ function updateProtocolHint() {
   el.textContent = PROTOCOL_HINT[segValue('protocolSeg') || 'openai'] || '';
 }
 
-/* 顶部状态条：让用户一眼看出 API 配好没有，不用点进设置 */
+/* 顶部状态条 + 设置页状态行。
+   模型的选择和当前值都放在主界面「① 模型」那块，这里只说配好没有，
+   顶部不再重复模型名，免得同一件事在两个地方各写一份、还会不一致。 */
 function updateApiState() {
+  var hasUrl = !!cfg.baseUrl;
   var ready = !!(cfg.baseUrl && cfg.model);
-  var text = ready
-    ? '模型：' + cfg.model
-    : cfg.baseUrl
-      ? '已填地址，未选模型'
-      : '未配置 API（点右上角「设置」）';
 
   var bar = $('apiState');
   if (bar) {
-    bar.textContent = text;
+    bar.textContent = ready ? '已配置' : hasUrl ? '已填地址，未选模型' : '未配置 API（点右上角「设置」）';
     bar.className = ready ? 'ok' : '';
   }
   var box = $('settingsState');
   if (box) {
+    box.className = 'hint';
     box.textContent = ready
-      ? '已配置：' + cfg.baseUrl + ' ｜ 模型 ' + cfg.model + ' ｜ 协议 ' + (cfg.protocol || 'openai')
-      : '还没配好。至少要填「接口地址」并选定「模型」，才能生成。';
+      ? '已配置：' + cfg.baseUrl + ' ｜ 协议 ' + (cfg.protocol || 'openai') +
+        '。当前模型 ' + cfg.model + '，在主界面最上面那块切换。'
+      : hasUrl
+        ? '地址已填。回到主界面最上面那块「模型」里拉取并选一个模型。'
+        : '还没配好。至少要填「接口地址」并选定「模型」，才能生成。';
   }
+  markActiveModel();
 }
 
 /* ------------------------------------------------------------------ */
@@ -234,16 +239,47 @@ async function onSaveConfig() {
   readForm();
   var stored = store.saveConfig(cfg);
   var where = await store.saveApiKey($('apiKey').value);
-  if (!stored) log('配置写入本地失败', 'err');
-  else log('配置已保存（Key 存储位置：' + where + '）', 'ok');
   updateApiState();
+  if (!stored) {
+    setSettingsState('配置写入本地失败', 'err');
+    log('配置写入本地失败', 'err');
+    return;
+  }
+  setSettingsState('已保存（Key 存储位置：' + where + '）。回主界面拉取并选模型。', 'ok');
+  log('配置已保存（Key 存储位置：' + where + '）', 'ok');
+}
+
+/* 拉取有结果之后才出现「可选模型」这一块。没拉之前它整块不占地方。 */
+function showModelPick(on) {
+  var wrap = $('modelPickWrap');
+  if (wrap) wrap.className = on ? '' : 'hidden';
+  setModelListOpen(on);
+}
+
+/* 列表自身的展开 / 收起。收起后只剩一行标题，
+   免得长长的模型列表把下面的提示词和「从选区生成」顶到看不见的地方。 */
+function setModelListOpen(on) {
+  var list = $('modelList');
+  if (list) list.className = on ? 'model-list' : 'model-list hidden';
+  var t = $('modelListToggle');
+  if (t) t.textContent = on ? '可选模型（点这里收起）' : '可选模型（点这里展开）';
+}
+
+function modelListOpen() {
+  var list = $('modelList');
+  return !!(list && list.className.indexOf('hidden') === -1);
 }
 
 async function onPullModels() {
   readForm();
   if (!cfg.baseUrl) {
-    setState('先填「接口地址」，再拉取模型列表。', 'err');
-    log('先填接口地址', 'err');
+    setState('先到「设置」里填「接口地址」，再回来拉取。', 'err');
+    log('先填接口地址（点右上角「设置」）', 'err');
+    return;
+  }
+  if (!$('apiKey').value) {
+    setState('还没填 API Key。点右上角「设置」填好并保存，再回来拉取。', 'err');
+    log('先填 API Key', 'err');
     return;
   }
   var btn = $('btnPullModels');
@@ -262,6 +298,13 @@ async function onPullModels() {
     modelsAll = res.ids;
     var likely = api.prioritizeImageModels(modelsAll);
     renderModelList(likely, modelsAll);
+    showModelPick(modelsAll.length > 0);
+    setState(
+      modelsAll.length
+        ? '拉取成功：共 ' + modelsAll.length + ' 个模型，点下面的列表选一个。'
+        : '拉取成功，但接口没返回任何模型。可以直接在「模型」框里手打模型名。',
+      modelsAll.length ? 'ok' : 'err'
+    );
     log('拉取成功（' + res.source + '），共 ' + modelsAll.length + ' 个模型，点下面的列表选一个', 'ok');
   } catch (e) {
     var msg = e && e.message ? e.message : String(e);
@@ -270,6 +313,7 @@ async function onPullModels() {
     } else {
       msg = friendlyNetError(msg, cfg.baseUrl);
     }
+    setState('拉取失败：' + msg, 'err');
     log('拉取失败：' + msg, 'err');
   } finally {
     clearTimeout(timer);
@@ -349,9 +393,13 @@ async function onGenerate() {
     return;
   }
   readForm();
-  if (!cfg.baseUrl || !cfg.model) {
-    log('还没配好 API：先在「设置」里填接口地址并选定模型', 'err');
+  if (!cfg.baseUrl) {
+    log('还没配好接口：先在「设置」里填接口地址', 'err');
     openSettings();
+    return;
+  }
+  if (!cfg.model) {
+    log('还没选模型：在最上面「① 模型」点「拉取模型列表」选一个，或在模型框里手打', 'err');
     return;
   }
   store.saveConfig(cfg);
@@ -443,12 +491,30 @@ async function boot() {
     store.saveConfig(cfg);
     markActiveModel();
     updateApiState();
+    setState('已选：' + v, 'ok');
+    setModelListOpen(false);
   });
 
+  $('modelListToggle').addEventListener('click', function () {
+    setModelListOpen(!modelListOpen());
+  });
+
+  // 手打的模型名也要落盘：不然关掉面板再打开就丢了。
+  var commitModel = function () {
+    var v = $('model').value.trim();
+    if (v === cfg.model) return;
+    cfg.model = v;
+    store.saveConfig(cfg);
+    updateApiState();
+  };
+  $('model').addEventListener('change', commitModel);
+  $('model').addEventListener('blur', commitModel);
+
+  showModelPick(false);
   renderTasks(tasks.list());
   updateApiState();
   log('面板已就绪', 'ok');
-  log('用法：点右上角「设置」配好接口和模型 → 回到主界面写提示词 → 在 PS 里框选 → 从选区生成', 'info');
+  log('用法：点右上角「设置」填接口地址和 Key → 回主界面拉取并选模型 → 写提示词 → 在 PS 里框选 → 从选区生成', 'info');
 }
 
 boot();
