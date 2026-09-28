@@ -34,6 +34,21 @@ async function runBatch(deps, prompts) {
   var maxEdge = parseInt(cfg.sizeTier, 10) || 2048;
   var shot;
   try {
+    // 先把"现在对着哪张图、多少位"写进日志。
+    // 万一后面的报错被宿主吞掉，这一行也足够看出问题出在哪。
+    var docInfo = await ps.getActiveDocInfo();
+    if (docInfo) {
+      log(
+        '当前文档：' + docInfo.name + '（' + docInfo.width + '×' + docInfo.height +
+          '，' + (docInfo.bitsPerChannel || '?') + ' 位/通道）',
+        docInfo.bitsPerChannel && docInfo.bitsPerChannel !== 8 ? 'warn' : 'info'
+      );
+      if (docInfo.bitsPerChannel && docInfo.bitsPerChannel !== 8) {
+        log('提示：' + docInfo.bitsPerChannel + ' 位/通道的文档读选区容易失败，建议先转成 8 位（图像 → 模式 → 8 位/通道）。', 'warn');
+      }
+    } else {
+      log('当前读不到活动文档——请确认 Photoshop 里已经打开了图片。', 'warn');
+    }
     shot = await ps.captureSelection(maxEdge);
   } catch (eSel) {
     // Photoshop 抛出来的东西经常不带 message，直接上屏就是一个 undefined。
