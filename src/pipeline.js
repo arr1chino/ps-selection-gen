@@ -2,7 +2,7 @@
  * pipeline.js — 一次批量生成的全流程
  *
  *   抓选区（一次，整批共用）
- *     → 每个提示词一个任务，进并发池
+ *     → 一条提示词按「张数」复制成 N 个任务，进并发池
  *         → 调接口生成
  *         → 走 PS 锁，贴回选区位置的新图层
  *     → 整批跑完：把这些新图层收进一个组，再给组加一个白色蒙版
@@ -14,19 +14,15 @@ var U = require('./util.js');
 
 /**
  * @param {Object} deps  { cfg, tasks, pool, psLock, log }
- * @param {string[]} prompts
+ * @param {string} promptText 提示词框里的原文（一条提示词）
  */
-async function runBatch(deps, prompts) {
+async function runBatch(deps, promptText) {
   var log = deps.log || function () {};
   var cfg = deps.cfg;
 
-  var lines = prompts
-    .map(function (s) {
-      return String(s || '').trim();
-    })
-    .filter(function (s) {
-      return s.length > 0;
-    });
+  // 一条提示词 → N 张图：同一句话复制 N 份，各跑一个任务。
+  // 想换提示词，就改掉框里的字再点一次生成。
+  var lines = U.expandPrompt(promptText, cfg.count);
   if (lines.length === 0) throw new Error('提示词是空的');
   if (!cfg.baseUrl) throw new Error('先去上面填接口地址');
   if (!cfg.model) throw new Error('先去上面选一个模型');
@@ -64,14 +60,15 @@ async function runBatch(deps, prompts) {
   // 抓到的像素究竟几个通道、几个字节，这一行是关键排查信息，直接留痕
   if (shot.pixelInfo) log(shot.pixelInfo, 'info');
 
-  deps.pool.setMax(cfg.concurrency);
+  // 这次要生成几张，就允许几个请求同时在飞（张数就是这个上限）
+  deps.pool.setMax(cfg.count);
 
   // 贴回成功的图层都记在这里，等整批跑完一次性编组。
   // 走 PS 锁的顺序就是它们堆在图层面板里的顺序（从下到上）。
   deps.successLayerIds = [];
 
-  var created = lines.map(function (line) {
-    return deps.tasks.add(line);
+  var created = lines.map(function (line, idx) {
+    return deps.tasks.add(line, idx + 1, lines.length);
   });
 
   var jobs = created.map(function (task) {
@@ -139,6 +136,10 @@ async function runOne(deps, task, shot) {
 
   if (task.state === 'cancelled') throw new Error('已取消');
 
+  // 一条提示词生成多张时，日志和图层名都带上「第几张」，
+  // 否则三个同名图层堆在一起，看不出哪个是哪个。
+  var tag = task.total > 1 ? task.index + '/' + task.total + ' ' : '';
+
   var controller = new AbortController();
   task.controller = controller;
   var timeoutId = setTimeout(function () {
@@ -150,7 +151,7 @@ async function runOne(deps, task, shot) {
   }, Math.max(10, cfg.timeout) * 1000);
 
   deps.tasks.update(task.id, { state: 'running', startedAt: Date.now() });
-  log('开始生成：' + shorten(task.prompt), 'info');
+  log('开始生成：' + tag + shorten(task.prompt), 'info');
 
   var result;
   try {
@@ -165,11 +166,11 @@ async function runOne(deps, task, shot) {
   } catch (e) {
     clearTimeout(timeoutId);
     if (task.state === 'cancelled') {
-      log('已中断：' + shorten(task.prompt), 'warn');
+      log('已中断：' + tag + shorten(task.prompt), 'warn');
     } else {
       var why = U.describeError(e) || '接口没返回原因';
       deps.tasks.update(task.id, { state: 'failed', message: why, finishedAt: Date.now() });
-      log('失败：' + shorten(task.prompt) + ' — ' + why, 'err');
+      log('失败：' + tag + shorten(task.prompt) + ' — ' + why, 'err');
     }
     throw e;
   }
@@ -185,7 +186,7 @@ async function runOne(deps, task, shot) {
         base64: result.base64,
         docId: shot.docId,
         target: shot.rect,
-        layerName: '生成 ' + shorten(task.prompt)
+        layerName: '生成 ' + tag + shorten(task.prompt)
       });
     });
   } catch (e2) {
@@ -208,7 +209,7 @@ async function runOne(deps, task, shot) {
     finishedAt: Date.now(),
     preview: 'data:' + fmt.mime + ';base64,' + result.base64
   });
-  log('完成并贴回：' + shorten(task.prompt), 'ok');
+  log('完成并贴回：' + tag + shorten(task.prompt), 'ok');
   return true;
 }
 

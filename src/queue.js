@@ -151,10 +151,17 @@ function createTaskManager(onChange) {
     list: function () {
       return tasks.slice();
     },
-    add: function (prompt) {
+    /**
+     * @param {string} prompt 提示词
+     * @param {number} [index] 这是这条提示词的第几张
+     * @param {number} [total] 这条提示词一共要生成几张
+     */
+    add: function (prompt, index, total) {
       var task = {
         id: U.uid('task'),
         prompt: prompt,
+        index: index || 1,
+        total: total || 1,
         state: 'queued',
         message: '',
         startedAt: 0,

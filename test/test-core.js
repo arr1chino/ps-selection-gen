@@ -421,6 +421,33 @@ console.log('\n[12] 请求真的带上了 API Key（401 Invalid token 的回归�
     check('退路方案：把图层挪进指定组',
       mv._obj === 'move' && mv._target[0]._id === 3 && mv.to._id === 9, JSON.stringify(mv));
   }
+
+  console.log('\n[15] 一条提示词 + 张数：expandPrompt 的复制规则');
+  {
+    check('空字符串 → 没有任务', U.expandPrompt('', 3).length === 0);
+    check('只有空白（空格 / 换行 / 制表符）→ 没有任务',
+      U.expandPrompt('  \n \t ', 3).length === 0);
+
+    const three = U.expandPrompt('把背景换成夜晚的海边', 3);
+    check('一句 + 张数 3 → 恰好 3 个任务', three.length === 3, String(three.length));
+    check('3 个任务都是同一句话',
+      three[0] === three[1] && three[1] === three[2] && three[0] === '把背景换成夜晚的海边');
+
+    check('张数为 1 → 只出 1 个', U.expandPrompt('一句话', 1).length === 1);
+    check('张数是字符串 "4" 也认', U.expandPrompt('一句话', '4').length === 4);
+
+    check('张数 0 → 兜底成 1 张', U.expandPrompt('一句话', 0).length === 1);
+    check('张数负数 → 兜底成 1 张', U.expandPrompt('一句话', -5).length === 1);
+    check('张数不是数字 → 兜底成 1 张', U.expandPrompt('一句话', 'abc').length === 1);
+    check('张数没传 → 兜底成 1 张', U.expandPrompt('一句话').length === 1);
+
+    check('提示词里的换行被并成空格',
+      U.expandPrompt('把背景\n换成夜空', 1)[0] === '把背景 换成夜空');
+    check('连续空格 / 制表符被并成一个空格，首尾空白去掉',
+      U.expandPrompt('  把背景   换成\t夜空  ', 1)[0] === '把背景 换成 夜空');
+    check('多余空白是"复制前"就收拾干净的，N 份都干净',
+      U.expandPrompt(' 甲 乙 ', 2).every((s) => s === '甲 乙'));
+  }
 })()
   .catch(function (e) {
     fail++;

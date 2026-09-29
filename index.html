@@ -125,7 +125,7 @@
       padding: 6px 8px;
       line-height: 18px;
     }
-    /* 并发数右端的上下箭头：和输入框拼成一个整体，所以输入框右边两个圆角改成直角。
+    /* 张数右端的上下箭头：和输入框拼成一个整体，所以输入框右边两个圆角改成直角。
        两个按钮各 16px，加起来正好是输入框的 32px。 */
     .stepper { display: flex; align-items: stretch; width: 100%; height: 32px; }
     .stepper input[type="number"] {
@@ -345,8 +345,8 @@
 
       <div class="section">
         <div class="section-title"><span>② 提示词</span></div>
-        <textarea id="prompt" placeholder="每行一条提示词"></textarea>
-        <div class="hint">一行 = 生成一张；写几行就批量生成几张，空行会忽略。</div>
+        <textarea id="prompt" placeholder="写一句提示词，比如：把背景换成夜晚的海边"></textarea>
+        <div class="hint">点生成就是这一句。要换一版，改掉提示词再点一次。</div>
         <div class="row" style="margin-top:6px;">
           <div class="label">尺寸档</div>
           <div class="grow">
@@ -358,13 +358,13 @@
           </div>
         </div>
         <div class="row">
-          <div class="label">并发数</div>
+          <div class="label">张数</div>
           <div class="grow">
             <div class="stepper">
-              <input type="number" id="concurrency" min="1" max="8" step="1" value="2" />
+              <input type="number" id="count" min="1" max="8" step="1" value="1" />
               <div class="steps">
-                <button type="button" id="concurrencyUp" title="加一个">▲</button>
-                <button type="button" id="concurrencyDown" title="减一个">▼</button>
+                <button type="button" id="countUp" title="加一张">▲</button>
+                <button type="button" id="countDown" title="减一张">▼</button>
               </div>
             </div>
           </div>

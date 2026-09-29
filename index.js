@@ -13,8 +13,12 @@ function $(id) {
 }
 
 var cfg = store.loadConfig();
+/* 旧配置里这个字段叫 concurrency（原来表示"同时跑几个"），现在这个数字的含义
+   变成了"这条提示词生成几张"。含义虽然变了，值可以直接沿用（原来一张就是一个任务），
+   所以这里只补一个新名字，不动老的值。 */
+if (cfg.count === undefined) cfg.count = cfg.concurrency;
 var tasks = queueLib.createTaskManager(renderTasks);
-var pool = queueLib.createPool(cfg.concurrency);
+var pool = queueLib.createPool(cfg.count);
 var psLock = queueLib.createPSLock();
 var running = false;
 var modelsAll = [];
@@ -142,7 +146,7 @@ function readForm() {
   cfg.protocol = segValue('protocolSeg') || 'openai';
   cfg.model = $('model').value.trim();
   cfg.sizeTier = segValue('sizeTierSeg') || '2048';
-  cfg.concurrency = Math.max(1, Math.min(8, parseInt($('concurrency').value, 10) || 1));
+  cfg.count = Math.max(1, Math.min(8, parseInt($('count').value, 10) || 1));
   cfg.timeout = Math.max(10, Math.min(900, parseInt($('timeout').value, 10) || 180));
   return cfg;
 }
@@ -152,19 +156,20 @@ function fillForm() {
   setSeg('protocolSeg', cfg.protocol || 'openai');
   $('model').value = cfg.model || '';
   setSeg('sizeTierSeg', cfg.sizeTier || '2048');
-  $('concurrency').value = cfg.concurrency || 2;
+  $('count').value = cfg.count || 1;
   $('timeout').value = cfg.timeout || 180;
   updateProtocolHint();
 }
 
-/* 并发数右端那对上下箭头：按一下 ±1。
+/* 「张数」右端那对上下箭头：按一下 ±1。
  *
+ * 这个数字的含义是「这一句提示词生成几张」，不是"同时跑几个"。
  * 边界直接用输入框自己写的 min / max，不在代码里再抄一份，
  * 免得以后改了刻度两处对不上。
- * 改完立刻生效：并发池的上限当场刷新（正在跑的批次也认），并落盘。
+ * 改完立刻落盘；正在跑的那批已经按老张数排好队了，下一批生效。
  */
-function stepConcurrency(delta) {
-  var el = $('concurrency');
+function stepCount(delta) {
+  var el = $('count');
   if (!el) return;
   var min = parseInt(el.getAttribute('min'), 10);
   var max = parseInt(el.getAttribute('max'), 10);
@@ -174,8 +179,7 @@ function stepConcurrency(delta) {
   if (!isFinite(now)) now = min;
   var next = Math.max(min, Math.min(max, now + delta));
   el.value = next;
-  cfg.concurrency = next;
-  pool.setMax(next);
+  cfg.count = next;
   store.saveConfig(cfg);
 }
 
@@ -501,13 +505,13 @@ async function onGenerate() {
   store.saveConfig(cfg);
   log('本次请求携带 API Key：共 ' + keyNow.length + ' 个字符', 'info');
 
-  var prompts = $('prompt').value.split('\n');
+  // 提示词框里就一条。张数按「这句生成几张」在 pipeline 里复制成 N 个任务。
   running = true;
   setBusy(true);
   try {
     var summary = await pipeline.runBatch(
       { cfg: cfg, tasks: tasks, pool: pool, psLock: psLock, log: log },
-      prompts
+      $('prompt').value
     );
     log('这一批结束：成功 ' + summary.okCount + ' / 失败 ' + summary.failCount, summary.failCount ? 'warn' : 'ok');
   } catch (e) {
@@ -589,12 +593,12 @@ async function boot() {
     updateProtocolHint();
   });
 
-  // 并发数的上下箭头：点一下加/减一个，取值范围还是输入框里的 1–8
-  $('concurrencyUp').addEventListener('click', function () {
-    stepConcurrency(1);
+  // 张数的上下箭头：点一下加/减一张，取值范围还是输入框里的 1–8
+  $('countUp').addEventListener('click', function () {
+    stepCount(1);
   });
-  $('concurrencyDown').addEventListener('click', function () {
-    stepConcurrency(-1);
+  $('countDown').addEventListener('click', function () {
+    stepCount(-1);
   });
 
   // 点收起状态那一行 → 展开 / 收起下面的模型列表

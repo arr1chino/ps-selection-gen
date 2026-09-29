@@ -26,7 +26,8 @@ var DEFAULTS = {
      不用每次开面板都重新拉一遍。 */
   imageModels: [],
   sizeTier: '2048',
-  concurrency: 2,
+  /* 这条提示词生成几张（老配置里的字段叫 concurrency，读的时候会接过来）。 */
+  count: 1,
   timeout: 180
 };
 

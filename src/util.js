@@ -100,6 +100,29 @@ function clamp(v, min, max) {
 }
 
 /**
+ * 一条提示词要生成几张：把这句话原样复制成 N 份。
+ *
+ * 提示词框里放的是**一条**提示词，不是清单。所以这里做的事就是把同一句话重复 N 次，
+ * 每次生成一张。想换一版，得改掉提示词再点一次生成。
+ *
+ * 顺手把空白收干净：里面的换行、连续空格都并成一个空格。从别处粘过来的提示词常常是
+ * 断成好几行的，直接发出去会带上多余的回车，接口那边看着像两个句子。
+ *
+ * 提示词是空的就返回空数组，交给上层报错。
+ */
+function expandPrompt(text, count) {
+  var p = String(text === undefined || text === null ? '' : text)
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!p) return [];
+  var n = Math.floor(Number(count));
+  if (!isFinite(n) || n < 1) n = 1;
+  var out = [];
+  for (var i = 0; i < n; i++) out.push(p);
+  return out;
+}
+
+/**
  * 把任意东西翻成一句能上屏的话。
  *
  * 为什么需要它：Photoshop / UXP 抛出来的东西不一定是 Error。
@@ -273,6 +296,7 @@ module.exports = {
   sniffImageFormat: sniffImageFormat,
   roundTo: roundTo,
   clamp: clamp,
+  expandPrompt: expandPrompt,
   describeError: describeError,
   parseBitsPerChannel: parseBitsPerChannel,
   toRgb8: toRgb8
