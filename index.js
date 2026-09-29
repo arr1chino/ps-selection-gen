@@ -157,6 +157,28 @@ function fillForm() {
   updateProtocolHint();
 }
 
+/* 并发数右端那对上下箭头：按一下 ±1。
+ *
+ * 边界直接用输入框自己写的 min / max，不在代码里再抄一份，
+ * 免得以后改了刻度两处对不上。
+ * 改完立刻生效：并发池的上限当场刷新（正在跑的批次也认），并落盘。
+ */
+function stepConcurrency(delta) {
+  var el = $('concurrency');
+  if (!el) return;
+  var min = parseInt(el.getAttribute('min'), 10);
+  var max = parseInt(el.getAttribute('max'), 10);
+  if (!isFinite(min)) min = 1;
+  if (!isFinite(max)) max = 8;
+  var now = parseInt(el.value, 10);
+  if (!isFinite(now)) now = min;
+  var next = Math.max(min, Math.min(max, now + delta));
+  el.value = next;
+  cfg.concurrency = next;
+  pool.setMax(next);
+  store.saveConfig(cfg);
+}
+
 /* 取这次请求要用的 API Key，并把它挂到 cfg.apiKey 上。
  *
  * 这个函数是补一个实打实的漏洞：api.js 的鉴权头只认 cfg.apiKey，
@@ -565,6 +587,14 @@ async function boot() {
   wireSeg('protocolSeg', function (v) {
     cfg.protocol = v;
     updateProtocolHint();
+  });
+
+  // 并发数的上下箭头：点一下加/减一个，取值范围还是输入框里的 1–8
+  $('concurrencyUp').addEventListener('click', function () {
+    stepConcurrency(1);
+  });
+  $('concurrencyDown').addEventListener('click', function () {
+    stepConcurrency(-1);
   });
 
   // 点收起状态那一行 → 展开 / 收起下面的模型列表
