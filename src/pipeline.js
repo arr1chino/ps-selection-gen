@@ -5,6 +5,7 @@
  *     → 每个提示词一个任务，进并发池
  *         → 调接口生成
  *         → 走 PS 锁，贴回选区位置的新图层
+ *     → 整批跑完：把这些新图层收进一个组，再给组加一个白色蒙版
  */
 
 var api = require('./api.js');
@@ -65,6 +66,10 @@ async function runBatch(deps, prompts) {
 
   deps.pool.setMax(cfg.concurrency);
 
+  // 贴回成功的图层都记在这里，等整批跑完一次性编组。
+  // 走 PS 锁的顺序就是它们堆在图层面板里的顺序（从下到上）。
+  deps.successLayerIds = [];
+
   var created = lines.map(function (line) {
     return deps.tasks.add(line);
   });
@@ -95,7 +100,37 @@ async function runBatch(deps, prompts) {
     if (results[i].ok) okCount++;
     else failCount++;
   }
-  return { okCount: okCount, failCount: failCount, total: results.length };
+
+  // 收尾：把这一批生成出来的图层收进一个组，再给组加一个白色蒙版。
+  // 单张也编组——用户要的就是"生成完结果都躺在一个组里"。
+  // 这一步走 psLock：前面每个贴回都在这条链上排过队，所以它会等最后一张贴完才动手。
+  var groupName = '生图结果';
+  var grouped = false;
+  if (deps.successLayerIds.length > 0) {
+    log('正在把 ' + deps.successLayerIds.length + ' 张结果收进组「' + groupName + '」…', 'info');
+    try {
+      await deps.psLock.acquire(function () {
+        return ps.groupLayersIntoOne({
+          docId: shot.docId,
+          layerIds: deps.successLayerIds.slice(),
+          groupName: groupName
+        });
+      });
+      grouped = true;
+      log('已编组并给组加上白色蒙版：' + groupName, 'ok');
+    } catch (eGroup) {
+      // 编组只是收尾，没做成也不影响已经贴回的那几张，所以只报一句别把整批判失败
+      log(
+        '编组没做成：' + (U.describeError(eGroup) || '没有给出原因') +
+          '（已生成的结果不受影响，图层还在画面上）',
+        'warn'
+      );
+    }
+  } else {
+    log('这一批没有贴回成功的结果，跳过编组', 'warn');
+  }
+
+  return { okCount: okCount, failCount: failCount, total: results.length, grouped: grouped };
 }
 
 async function runOne(deps, task, shot) {
@@ -143,8 +178,9 @@ async function runOne(deps, task, shot) {
   if (task.state === 'cancelled') throw new Error('已取消');
 
   deps.tasks.update(task.id, { state: 'pasting', message: '等待贴回' });
+  var pastedLayerId = null;
   try {
-    await deps.psLock.acquire(function () {
+    pastedLayerId = await deps.psLock.acquire(function () {
       return ps.pasteToSelection({
         base64: result.base64,
         docId: shot.docId,
@@ -157,6 +193,11 @@ async function runOne(deps, task, shot) {
     deps.tasks.update(task.id, { state: 'failed', message: '贴回失败：' + why2, finishedAt: Date.now() });
     log('贴回失败：' + why2, 'err');
     throw e2;
+  }
+
+  // 记住这个图层，整批结束后一起编组
+  if (pastedLayerId !== null && pastedLayerId !== undefined && deps.successLayerIds) {
+    deps.successLayerIds.push(pastedLayerId);
   }
 
   // 返回的图可能是 png 也可能是 jpeg，用字节头判断，别写死 mime

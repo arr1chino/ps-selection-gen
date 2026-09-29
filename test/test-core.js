@@ -381,6 +381,46 @@ console.log('\n[12] 请求真的带上了 API Key（401 Invalid token 的回归�
         candidates: [{ content: { parts: [{ inlineData: { data: 'REAL' } }, { text: markdown }] } }]
       }) === 'REAL');
   }
+
+  console.log('\n[14] 生成结果编组 + 白色蒙版：发给 PS 的命令形状');
+  {
+    const psCmd = require(path.join(SRC, 'ps-commands.js'));
+
+    check('没有图层时不生成任何选择命令', psCmd.selectLayers([]).length === 0);
+
+    const two = psCmd.selectLayers([11, 22]);
+    check('两个图层就两条选择命令', two.length === 2, String(two.length));
+    check('第一条选择是"替换"，不带加选修饰符', !two[0].selectionModifier,
+      JSON.stringify(two[0].selectionModifier));
+    check('第二条起才带"加选"',
+      !!two[1].selectionModifier && two[1].selectionModifier._value === 'addToSelection',
+      JSON.stringify(two[1].selectionModifier));
+    check('选图层时不动可见性（别把隐藏图层点亮）',
+      two[0].makeVisible === false && two[1].makeVisible === false);
+
+    const g = psCmd.groupLayers();
+    check('编组命令就是 groupLayers', g._obj === 'groupLayers', g._obj);
+    check('编组作用在当前选择上', g._target[0]._value === 'targetEnum', JSON.stringify(g._target));
+
+    // 这一条是整个功能的关键：白色蒙版就是 revealAll。
+    // 要是写成 hideAll，那是黑蒙版，整个组会先被藏起来，用户看到画面直接空了。
+    const m = psCmd.addWhiteMask();
+    check('白蒙版用的是 revealAll，不是 hideAll',
+      !!m.using && m.using._value === 'revealAll', JSON.stringify(m.using));
+    check('蒙版加在 channel 上',
+      m._obj === 'make' && m._target[0]._ref === 'channel', JSON.stringify(m._target));
+
+    const r = psCmd.renameLayer(7, '生图结果');
+    check('改名命令带上了新名字和目标图层',
+      !!r.to && r.to.name === '生图结果' && r._target[0]._id === 7, JSON.stringify(r.to));
+
+    const mk = psCmd.makeGroup();
+    check('退路方案：建空组用的是 layerSection',
+      !!mk.using && mk.using._obj === 'layerSection', JSON.stringify(mk.using));
+    const mv = psCmd.moveLayerInto(3, 9);
+    check('退路方案：把图层挪进指定组',
+      mv._obj === 'move' && mv._target[0]._id === 3 && mv.to._id === 9, JSON.stringify(mv));
+  }
 })()
   .catch(function (e) {
     fail++;

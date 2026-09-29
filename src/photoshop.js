@@ -14,6 +14,7 @@
 var photoshop = require('photoshop');
 var uxp = require('uxp');
 var U = require('./util.js');
+var psCmd = require('./ps-commands.js');
 
 var app = photoshop.app;
 var core = photoshop.core;
@@ -425,6 +426,91 @@ async function pasteToSelection(opts) {
   return layerId;
 }
 
+/**
+ * 把这一批生成出来的图层收进一个组，再给这个组加一个白色蒙版。
+ *
+ * @param {Object} opts
+ *   @param {number}   opts.docId      目标文档
+ *   @param {number[]} opts.layerIds   要收进组的图层（贴回成功的那些，顺序从下到上）
+ *   @param {string}   [opts.groupName]
+ * @returns {Promise<number|null>} 新组的图层 id
+ *
+ * 为什么单张也建组：用户要的效果是"不管生成几张，最后都躺在一个组里"，
+ * 单张时组里就一个图层，不特殊对待。
+ *
+ * 白色蒙版 = revealAll = "全部显示"：画面一点不变，但组上就多了一块可以随时涂黑的蒙版。
+ * （黑蒙版是 hideAll，会先把整个组藏起来，那是另一个意思，别搞混。）
+ */
+async function groupLayersIntoOne(opts) {
+  var ids = (opts && opts.layerIds) || [];
+  if (ids.length === 0) return null;
+
+  var groupId = null;
+  try {
+    await core.executeAsModal(
+      async function () {
+        var targetDoc = null;
+        for (var i = 0; i < app.documents.length; i++) {
+          if (app.documents[i].id === opts.docId) targetDoc = app.documents[i];
+        }
+        if (!targetDoc) throw new Error('目标文档已经关闭了');
+
+        await app.batchPlay([{ _obj: 'select', _target: [{ _ref: 'document', _id: opts.docId }] }], {});
+
+        // 先把这批图层一起选中：第一条替换当前选择，后面的累加。
+        await app.batchPlay(psCmd.selectLayers(ids), {});
+
+        // 首选做法：PS 自带的"编组图层"。组里会保留这些图层原来的上下顺序。
+        var grouped = false;
+        try {
+          await playOrThrow([psCmd.groupLayers()]);
+          grouped = true;
+        } catch (eGroup) {
+          // 个别 PS 版本只选了一个图层时不给用这条命令，走下面的退路
+        }
+
+        if (grouped) {
+          groupId = app.activeDocument.activeLayers[0].id;
+        } else {
+          // 退路：先建一个空组，再把图层挨个挪进去。
+          // 从数组头（最下面那个）开始挪，每次落在组内最上层，出来的顺序才对。
+          await playOrThrow([psCmd.makeGroup()]);
+          groupId = app.activeDocument.activeLayers[0].id;
+          for (var k = 0; k < ids.length; k++) {
+            await playOrThrow([psCmd.moveLayerInto(ids[k], groupId)]);
+          }
+          await playOrThrow([psCmd.selectLayer(groupId)]);
+        }
+
+        // 改完名字、加白蒙版。这时候当前图层就是这个组。
+        await playOrThrow([psCmd.renameLayer(groupId, opts.groupName || '生图结果')]);
+        await playOrThrow([psCmd.addWhiteMask()]);
+      },
+      { commandName: '生成结果编组' }
+    );
+  } catch (e) {
+    throw new Error(U.describeError(e) || 'Photoshop 拒绝了这次编组，但没给出原因');
+  }
+  if (!groupId) throw new Error('编组走完了，但没有拿到新组');
+  return groupId;
+}
+
+/**
+ * 跑一批 batchPlay 命令，并检查返回值里有没有错误。
+ *
+ * batchPlay 失败时不一定抛异常，有时是在返回数组里塞一个 { _obj: 'error', message }。
+ * 两种都要当失败处理，不然"编组没成"会被当成"编组成功"。
+ */
+async function playOrThrow(commands, opts) {
+  var res = await app.batchPlay(commands, opts || {});
+  var arr = Array.isArray(res) ? res : [res];
+  for (var i = 0; i < arr.length; i++) {
+    var r = arr[i];
+    if (r && r._obj === 'error') throw new Error(r.message || 'Photoshop 返回了一个错误');
+  }
+  return res;
+}
+
 /** 给 UI 用的当前文档信息 */
 async function getActiveDocInfo() {
   try {
@@ -465,5 +551,6 @@ async function getActiveDocInfo() {
 module.exports = {
   captureSelection: captureSelection,
   pasteToSelection: pasteToSelection,
+  groupLayersIntoOne: groupLayersIntoOne,
   getActiveDocInfo: getActiveDocInfo
 };
