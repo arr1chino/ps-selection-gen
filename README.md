@@ -75,7 +75,7 @@ node test/test-core.js
 node test/test-manifest.js
 ```
 
-期望 73 项 + 14 项 `ok`、0 项 `FAIL`。
+期望 145 项 + 14 项 `ok`、0 项 `FAIL`。
 
 ## 怎么装进 Photoshop
 
