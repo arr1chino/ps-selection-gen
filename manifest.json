@@ -1,7 +1,7 @@
 {
   "id": "com.vibe.selectiongen",
   "name": "选区生图",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {

@@ -106,6 +106,18 @@ node test/test-manifest.js
 
 改完代码要**完全退出 Photoshop 再打开**，只关面板不会重新加载插件。
 
+### 环境与版本
+
+| 项 | 说明 |
+| --- | --- |
+| 插件版本 | `0.2.1`（写在 `manifest.json` 的 `version`；每次改动都记在 `CHANGELOG.md`，标签见 [tags](https://github.com/arr1chino/ps-selection-gen/tags)） |
+| 宿主要求 | Photoshop `24.2.0` 以上（清单里写的就是这个下限），实测环境是 Photoshop 2026 / Windows |
+| 面板类型 | UXP 原生面板（`manifestVersion: 5`），不是老的 CEP 扩展，所以不需要 Creative Cloud 或 UXP Developer Tool |
+| 第三方依赖 | 没有。没有 `package.json`、没有构建步骤，只用到宿主自带的 `fetch` / `require` / `imaging` / `batchPlay` |
+| 权限 | 清单里申请了两项：网络（`domains: all`，因为要连你自己填的接口地址）和完整本地文件读写（把结果写成临时文件交给 Photoshop 解码） |
+| 配置存放 | 普通配置（地址 / 协议 / 模型 / 参数）走 `localStorage`；API Key 走系统加密存储（`uxp.storage.secureStorage`），同时在 `localStorage` 里存一份副本，防个别环境下加密存储"写得进读不出" |
+| 已知兼容问题 | 见下面「已知限制」和「真机验证结果」两节——目前明确知道的三条：只支持矩形选区、只支持 8 位/通道、真机上自动编组那一步会报错 |
+
 ## 怎么用
 
 接口配置和日常生成是分开的两页：主面板只管"写词、开跑、看结果"，
