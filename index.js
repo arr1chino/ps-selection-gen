@@ -132,7 +132,7 @@ function renderTasks(list) {
   if (stat) {
     stat.textContent = c.total === 0
       ? '空闲'
-      : '共 ' + c.total + '｜排队 ' + c.queued + '｜进行 ' + (c.running + c.pasting) + '｜完成 ' + c.done +
+      : '共 ' + c.total + '｜排队 ' + c.queued + '｜进行 ' + ((c.running || 0) + (c.pasting || 0)) + '｜完成 ' + c.done +
         (c.failed ? '｜失败 ' + c.failed : '') + (c.cancelled ? '｜中断 ' + c.cancelled : '');
   }
 }

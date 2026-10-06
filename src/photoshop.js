@@ -446,9 +446,13 @@ async function groupLayersIntoOne(opts) {
   if (ids.length === 0) return null;
 
   var groupId = null;
+  // 出错时要知道是哪一步断的——真机上编组报过一次 "Photoshop 返回了一个错误"，
+  // 只说这一句等于什么都没说，没法排查。
+  var step = '找到目标文档';
   try {
     await core.executeAsModal(
       async function () {
+        step = '找到目标文档';
         var targetDoc = null;
         for (var i = 0; i < app.documents.length; i++) {
           if (app.documents[i].id === opts.docId) targetDoc = app.documents[i];
@@ -458,14 +462,22 @@ async function groupLayersIntoOne(opts) {
         await app.batchPlay([{ _obj: 'select', _target: [{ _ref: 'document', _id: opts.docId }] }], {});
 
         // 先把这批图层一起选中：第一条替换当前选择，后面的累加。
-        await app.batchPlay(psCmd.selectLayers(ids), {});
+        step = '选中要编组的 ' + ids.length + ' 个图层';
+        var selRes = await app.batchPlay(psCmd.selectLayers(ids), {});
+        var selErr = firstPlayError(selRes);
+        // 选不中的话，后面的"编组图层"会作用在当前选中的别的图层上——
+        // 那比直接报错危险得多（会把无关图层收进组里），所以这里就停。
+        if (selErr) throw new Error('没选中：' + selErr);
 
         // 首选做法：PS 自带的"编组图层"。组里会保留这些图层原来的上下顺序。
         var grouped = false;
+        var firstTryErr = '';
+        step = '编组图层';
         try {
           await playOrThrow([psCmd.groupLayers()]);
           grouped = true;
         } catch (eGroup) {
+          firstTryErr = U.describeError(eGroup) || '没给出原因';
           // 个别 PS 版本只选了一个图层时不给用这条命令，走下面的退路
         }
 
@@ -474,8 +486,10 @@ async function groupLayersIntoOne(opts) {
         } else {
           // 退路：先建一个空组，再把图层挨个挪进去。
           // 从数组头（最下面那个）开始挪，每次落在组内最上层，出来的顺序才对。
+          step = '建一个空组（第一条路失败：' + firstTryErr + '）';
           await playOrThrow([psCmd.makeGroup()]);
           groupId = app.activeDocument.activeLayers[0].id;
+          step = '把图层挪进组';
           for (var k = 0; k < ids.length; k++) {
             await playOrThrow([psCmd.moveLayerInto(ids[k], groupId)]);
           }
@@ -483,13 +497,17 @@ async function groupLayersIntoOne(opts) {
         }
 
         // 改完名字、加白蒙版。这时候当前图层就是这个组。
+        step = '给组改名';
         await playOrThrow([psCmd.renameLayer(groupId, opts.groupName || '生图结果')]);
+        step = '给组加白色蒙版';
         await playOrThrow([psCmd.addWhiteMask()]);
       },
       { commandName: '生成结果编组' }
     );
   } catch (e) {
-    throw new Error(U.describeError(e) || 'Photoshop 拒绝了这次编组，但没给出原因');
+    throw new Error(
+      '卡在「' + step + '」：' + (U.describeError(e) || 'Photoshop 拒绝了这次编组，但没给出原因')
+    );
   }
   if (!groupId) throw new Error('编组走完了，但没有拿到新组');
   return groupId;
@@ -503,12 +521,41 @@ async function groupLayersIntoOne(opts) {
  */
 async function playOrThrow(commands, opts) {
   var res = await app.batchPlay(commands, opts || {});
+  var err = firstPlayError(res);
+  if (err) throw new Error(err);
+  return res;
+}
+
+/** 返回返回结果里的第一句错误说明；没有错误就返回空串 */
+function firstPlayError(res) {
   var arr = Array.isArray(res) ? res : [res];
   for (var i = 0; i < arr.length; i++) {
     var r = arr[i];
-    if (r && r._obj === 'error') throw new Error(r.message || 'Photoshop 返回了一个错误');
+    if (r && r._obj === 'error') return describePlayError(r);
   }
-  return res;
+  return '';
+}
+
+/**
+ * 把 batchPlay 的错误对象翻成一句有内容的话。
+ *
+ * 为什么要这么做：PS 的 error 对象经常只有 `number`、没有 `message`，
+ * 直接拿 message 会得到一句"Photoshop 返回了一个错误"，等于什么都没说，
+ * 排查时只能靠猜。这里把 message / number / 原始 JSON 都带上。
+ */
+function describePlayError(r) {
+  var parts = [];
+  if (r.message) parts.push(String(r.message).trim());
+  if (r.number !== undefined && r.number !== null) parts.push('代码 ' + r.number);
+  if (r.result && r.result.message) parts.push(String(r.result.message).trim());
+  if (!parts.length) {
+    try {
+      parts.push(JSON.stringify(r));
+    } catch (e) {
+      // 环形结构，放弃
+    }
+  }
+  return parts.join('｜') || 'Photoshop 返回了一个错误';
 }
 
 /** 给 UI 用的当前文档信息 */

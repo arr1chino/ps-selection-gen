@@ -227,7 +227,9 @@ function createTaskManager(onChange) {
       return n;
     },
     counts: function () {
-      var c = { total: tasks.length, queued: 0, running: 0, done: 0, failed: 0, cancelled: 0 };
+      // 状态清单必须和 pipeline 里真正用到的状态一一对上：
+      // 少一个（比如 pasting）就会让界面上「进行 N」算出 NaN。
+      var c = { total: tasks.length, queued: 0, running: 0, pasting: 0, done: 0, failed: 0, cancelled: 0 };
       for (var i = 0; i < tasks.length; i++) {
         var s = tasks[i].state;
         if (c[s] !== undefined) c[s]++;

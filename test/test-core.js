@@ -8,6 +8,7 @@ const SRC = path.join(__dirname, '..', 'src');
 
 const U = require(path.join(SRC, 'util.js'));
 const api = require(path.join(SRC, 'api.js'));
+const queue = require(path.join(SRC, 'queue.js'));
 
 let pass = 0;
 let fail = 0;
@@ -447,6 +448,29 @@ console.log('\n[12] 请求真的带上了 API Key（401 Invalid token 的回归�
       U.expandPrompt('  把背景   换成\t夜空  ', 1)[0] === '把背景 换成 夜空');
     check('多余空白是"复制前"就收拾干净的，N 份都干净',
       U.expandPrompt(' 甲 乙 ', 2).every((s) => s === '甲 乙'));
+  }
+
+  console.log('\n[16] 任务统计 counts()：状态清单必须和 pipeline 用到的状态对得上');
+  {
+    const tm = queue.createTaskManager();
+    const t1 = tm.add('把背景换成夜空', 1, 3);
+    const t2 = tm.add('把背景换成夜空', 2, 3);
+    const t3 = tm.add('把背景换成夜空', 3, 3);
+    tm.update(t1.id, { state: 'running' });
+    tm.update(t2.id, { state: 'pasting' });
+    tm.update(t3.id, { state: 'done' });
+
+    const n = tm.counts();
+    check('running 被统计到', n.running === 1, String(n.running));
+    check('pasting 被统计到（少了它界面上就是「进行 NaN」）', n.pasting === 1, String(n.pasting));
+    check('done 被统计到', n.done === 1, String(n.done));
+    check('「进行」= running + pasting，算出来是数字不是 NaN',
+      (n.running || 0) + (n.pasting || 0) === 2,
+      String((n.running || 0) + (n.pasting || 0)));
+
+    const states = ['queued', 'running', 'pasting', 'done', 'failed', 'cancelled'];
+    check('六个状态在 counts() 里都有格子，谁都没有落空',
+      states.every((s) => typeof n[s] === 'number'), JSON.stringify(n));
   }
 })()
   .catch(function (e) {
