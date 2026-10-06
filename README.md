@@ -47,6 +47,8 @@
 从框选到贴回的完整录屏（84 秒，4.8 MB）：
 <https://github.com/arr1chino/ps-selection-gen/releases/download/v0.2.0/demo.mp4>
 
+重录（带讲解）或给现有录屏加字幕时，照着 [docs/录屏解说稿.md](docs/录屏解说稿.md) 念就行。
+
 ### 界面预览（浏览器渲染）
 
 主面板只留每次生成都要碰的东西（模型、提示词、尺寸档 / 张数 / 超时），
